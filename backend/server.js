@@ -22,11 +22,32 @@ const LOCATION_CURRENCY = {
   'Medellín': 'COP'
 };
 
+// Co404 Business Categories
+const EXPENSE_CATEGORIES = [
+  'Cleaning supplies', 'Coffee', 'Drinking water', 'General supplies', 
+  'Improvements', 'Internet', 'Laundry', 'Miscellaneous', 'Rent', 
+  'Utilities', 'Volunteer activities', 'Volunteer breakfast', 
+  'Day-to-day expenses', 'Family dinner', 'Beers', 'Market', 
+  'Software', 'Expansion', 'Taxes', 'Maintenance', 'Wages', 'Airbnb'
+];
+
+const INCOME_CATEGORIES = [
+  'Guest stay', 'Beer', 'Volunteer activities', 'Non-guests'
+];
+
+// Co404 Payment Methods by Location
+const PAYMENT_METHODS = {
+  'San Cristóbal': ['Cash box', 'Pouch manager', 'Card manager', 'Card CO404'],
+  'Oaxaca City': ['Cash box', 'Pouch manager', 'Card manager', 'Card CO404'],
+  'Medellín': ['Cash box', 'Pouch manager', 'Card manager'], // No Card CO404 in Colombia
+  'all': ['Cash box', 'Pouch manager', 'Card manager', 'Card CO404', 'Laurens safe']
+};
+
 // Middleware
 app.use(cors());
 app.use(express.json());
 
-// Users database
+// Users database (enhanced with more details)
 const users = [
   {
     id: 1,
@@ -59,17 +80,97 @@ const users = [
     role: 'manager',
     name: 'Ivonne',
     location: 'Oaxaca City'
+  },
+  {
+    id: 5,
+    username: 'volunteer1',
+    password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+    role: 'volunteer',
+    name: 'Alex (Volunteer)',
+    location: 'Oaxaca City'
   }
 ];
 
-// Enhanced transactions with currency
+// Enhanced transactions with Co404 structure
 let transactions = [
-  { id: 1, description: 'Guest Stay Revenue', amount: 2000, type: 'income', location: 'Oaxaca City', currency: 'MXN', date: new Date().toISOString(), addedBy: 'ivonne' },
-  { id: 2, description: 'Office Rent', amount: -24000, type: 'expense', location: 'Oaxaca City', currency: 'MXN', date: new Date().toISOString(), addedBy: 'ivonne' },
-  { id: 3, description: 'Equipment Purchase', amount: -2000000, type: 'expense', location: 'Medellín', currency: 'COP', date: new Date().toISOString(), addedBy: 'leo' },
-  { id: 4, description: 'Guest Stay Revenue', amount: 1600000, type: 'income', location: 'Medellín', currency: 'COP', date: new Date().toISOString(), addedBy: 'leo' },
-  { id: 5, description: 'Beer Sales', amount: 600, type: 'income', location: 'San Cristóbal', currency: 'MXN', date: new Date().toISOString(), addedBy: 'santi' },
-  { id: 6, description: 'Coffee Supplies', amount: -400, type: 'expense', location: 'San Cristóbal', currency: 'MXN', date: new Date().toISOString(), addedBy: 'santi' }
+  { 
+    id: 1, 
+    description: 'Private room booking', 
+    amount: 1800, 
+    type: 'income', 
+    category: 'Guest stay',
+    paymentMethod: 'Card CO404',
+    location: 'Oaxaca City', 
+    currency: 'MXN', 
+    date: new Date().toISOString(), 
+    addedBy: 'ivonne',
+    shift: null
+  },
+  { 
+    id: 2, 
+    description: 'Monthly rent payment', 
+    amount: -25000, 
+    type: 'expense', 
+    category: 'Rent',
+    paymentMethod: 'Card CO404',
+    location: 'Oaxaca City', 
+    currency: 'MXN', 
+    date: new Date().toISOString(), 
+    addedBy: 'ivonne',
+    shift: null
+  },
+  { 
+    id: 3, 
+    description: 'Coffee beans for guests', 
+    amount: -240000, 
+    type: 'expense', 
+    category: 'Coffee',
+    paymentMethod: 'Cash box',
+    location: 'Medellín', 
+    currency: 'COP', 
+    date: new Date().toISOString(), 
+    addedBy: 'leo',
+    shift: null
+  },
+  { 
+    id: 4, 
+    description: 'Dorm bed revenue', 
+    amount: 400000, 
+    type: 'income', 
+    category: 'Guest stay',
+    paymentMethod: 'Cash box',
+    location: 'Medellín', 
+    currency: 'COP', 
+    date: new Date().toISOString(), 
+    addedBy: 'leo',
+    shift: null
+  },
+  { 
+    id: 5, 
+    description: 'Beer sales to guests', 
+    amount: 320, 
+    type: 'income', 
+    category: 'Beer',
+    paymentMethod: 'Pouch manager',
+    location: 'San Cristóbal', 
+    currency: 'MXN', 
+    date: new Date().toISOString(), 
+    addedBy: 'santi',
+    shift: null
+  },
+  { 
+    id: 6, 
+    description: 'Cleaning supplies purchase', 
+    amount: -180, 
+    type: 'expense', 
+    category: 'Cleaning supplies',
+    paymentMethod: 'Cash box',
+    location: 'San Cristóbal', 
+    currency: 'MXN', 
+    date: new Date().toISOString(), 
+    addedBy: 'santi',
+    shift: null
+  }
 ];
 
 let nextId = 7;
@@ -101,6 +202,20 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+// Get business data (categories, payment methods)
+app.get('/api/business-data', authenticateToken, (req, res) => {
+  const userLocation = req.user.location;
+  const paymentMethods = PAYMENT_METHODS[userLocation] || PAYMENT_METHODS['all'];
+  
+  res.json({
+    expenseCategories: EXPENSE_CATEGORIES,
+    incomeCategories: INCOME_CATEGORIES,
+    paymentMethods: paymentMethods,
+    locations: ['San Cristóbal', 'Oaxaca City', 'Medellín'],
+    currencies: LOCATION_CURRENCY
+  });
+});
+
 // Login endpoint
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
@@ -110,7 +225,7 @@ app.post('/api/login', async (req, res) => {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
-  const validPassword = password === 'admin123' || password === 'manager123';
+  const validPassword = password === 'admin123' || password === 'manager123' || password === 'volunteer123';
   if (!validPassword) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
@@ -151,12 +266,15 @@ app.get('/api/me', authenticateToken, (req, res) => {
 
 // Get transactions with optional location filter
 app.get('/api/transactions', authenticateToken, (req, res) => {
-  const { location } = req.query; // Get location filter from query params
+  const { location } = req.query;
   let filteredTransactions = transactions;
 
   // Filter based on user role first
   if (req.user.role === 'manager') {
     filteredTransactions = transactions.filter(t => t.location === req.user.location);
+  } else if (req.user.role === 'volunteer') {
+    // Volunteers see only their own transactions
+    filteredTransactions = transactions.filter(t => t.addedBy === req.user.username);
   } else if (req.user.role === 'admin' && location && location !== 'all') {
     // Admin can filter by specific location
     filteredTransactions = transactions.filter(t => t.location === location);
@@ -174,11 +292,11 @@ app.get('/api/transactions', authenticateToken, (req, res) => {
 
 // Add new transaction
 app.post('/api/transactions', authenticateToken, (req, res) => {
-  const { description, amount, type, location } = req.body;
+  const { description, amount, type, location, category, paymentMethod } = req.body;
   
   // Determine location and currency
   let transactionLocation = location;
-  if (req.user.role === 'manager') {
+  if (req.user.role === 'manager' || req.user.role === 'volunteer') {
     transactionLocation = req.user.location;
   }
   
@@ -189,10 +307,13 @@ app.post('/api/transactions', authenticateToken, (req, res) => {
     description,
     amount: Number(amount),
     type,
+    category: category || 'Miscellaneous',
+    paymentMethod: paymentMethod || 'Cash box',
     location: transactionLocation,
     currency,
     date: new Date().toISOString(),
-    addedBy: req.user.username
+    addedBy: req.user.username,
+    shift: null // Will add shift tracking later
   };
   
   transactions.push(transaction);
@@ -231,9 +352,39 @@ app.get('/api/location-summary', authenticateToken, (req, res) => {
   res.json(locationSummary);
 });
 
+// Get category breakdown
+app.get('/api/category-breakdown', authenticateToken, (req, res) => {
+  const { location } = req.query;
+  let filteredTransactions = transactions;
+
+  // Apply same filtering logic as transactions
+  if (req.user.role === 'manager') {
+    filteredTransactions = transactions.filter(t => t.location === req.user.location);
+  } else if (req.user.role === 'admin' && location && location !== 'all') {
+    filteredTransactions = transactions.filter(t => t.location === location);
+  }
+
+  // Group by category
+  const categoryBreakdown = {};
+  filteredTransactions.forEach(t => {
+    if (!categoryBreakdown[t.category]) {
+      categoryBreakdown[t.category] = { income: 0, expenses: 0, count: 0 };
+    }
+    
+    if (t.amount > 0) {
+      categoryBreakdown[t.category].income += convertToUSD(t.amount, t.currency);
+    } else {
+      categoryBreakdown[t.category].expenses += Math.abs(convertToUSD(t.amount, t.currency));
+    }
+    categoryBreakdown[t.category].count++;
+  });
+
+  res.json(categoryBreakdown);
+});
+
 // Health check
 app.get('/api/hello', (req, res) => {
-  res.json({ message: 'Co404 Finance API with Multi-Currency is running!' });
+  res.json({ message: 'Co404 Finance API with Enhanced Business Structure is running!' });
 });
 
 // Start server
