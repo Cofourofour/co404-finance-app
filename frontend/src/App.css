@@ -1,0 +1,202 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Roboto:wght@300;400;500&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: #E3DBD6;
+  font-family: 'Roboto', sans-serif;
+  color: #43362D;
+}
+
+.App {
+  min-height: 100vh;
+  background-color: #E3DBD6;
+}
+
+.App-header {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+h1 {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 700;
+  color: #000000;
+  text-align: center;
+  margin-bottom: 2rem;
+  font-size: 2.5rem;
+}
+
+h2, h3 {
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 600;
+  color: #43362D;
+  margin-bottom: 1rem;
+}
+
+.balance {
+  background-color: #EDE8E5;
+  padding: 2rem;
+  border-radius: 12px;
+  text-align: center;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.balance h2 {
+  color: #C58C72;
+  font-size: 2rem;
+}
+
+.add-transaction {
+  background-color: #EDE8E5;
+  padding: 2rem;
+  border-radius: 12px;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.add-transaction form {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  gap: 1rem;
+  align-items: end;
+}
+
+.add-transaction input,
+.add-transaction select {
+  padding: 0.8rem;
+  border: 2px solid #EDE8E6;
+  border-radius: 8px;
+  font-family: 'Roboto', sans-serif;
+  background-color: #EDE8E6;
+  color: #43362D;
+}
+
+.add-transaction input:focus,
+.add-transaction select:focus {
+  outline: none;
+  border-color: #C58C72;
+}
+
+.add-transaction button {
+  padding: 0.8rem 1.5rem;
+  background-color: #C58C72;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-family: 'Montserrat', sans-serif;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.add-transaction button:hover {
+  background-color: #B37775;
+}
+
+.transactions {
+  background-color: #EDE8E5;
+  padding: 2rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.transaction {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  margin-bottom: 0.5rem;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.transaction.income {
+  background-color: #C58C72;
+  color: white;
+}
+
+.transaction.expense {
+  background-color: #B37775;
+  color: white;
+}
+
+@media (max-width: 768px) {
+  .App-header {
+    padding: 1rem;
+  }
+  
+  .add-transaction form {
+    grid-template-columns: 1fr;
+  }
+  
+  h1 {
+    font-size: 2rem;
+  }
+}
+.analytics {
+  background-color: #EDE8E5;
+  padding: 2rem;
+  border-radius: 12px;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  margin-top: 1rem;
+}
+
+.chart-container {
+  background-color: #EDE8E6;
+  padding: 1.5rem;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  background-color: #EDE8E6;
+  padding: 1.5rem;
+  border-radius: 8px;
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 2rem;
+  font-weight: 700;
+  font-family: 'Montserrat', sans-serif;
+  margin-bottom: 0.5rem;
+}
+
+.stat-value.income {
+  color: #C58C72;
+}
+
+.stat-value.expense {
+  color: #B37775;
+}
+
+.stat-value.balance {
+  color: #43362D;
+}
+
+@media (max-width: 768px) {
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
+}
