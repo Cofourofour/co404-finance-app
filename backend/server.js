@@ -503,7 +503,27 @@ app.get('/api/category-breakdown', authenticateToken, (req, res) => {
 
   res.json(categoryBreakdown);
 });
+// Clear all transactions (admin only)
+app.delete('/api/clear-transactions', authenticateToken, (req, res) => {
+  // Only admins can clear all transactions
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
 
+  try {
+    // Keep only the first 2 sample transactions or clear completely
+    transactions = [];
+    nextId = 1;
+    
+    res.json({
+      success: true,
+      message: 'All transactions cleared successfully'
+    });
+  } catch (error) {
+    console.error('Clear transactions error:', error);
+    res.status(500).json({ error: 'Failed to clear transactions' });
+  }
+});
 // Health check
 app.get('/api/hello', (req, res) => {
   res.json({ message: 'Co404 Finance API with Bulk Import is running!' });
