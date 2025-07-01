@@ -45,9 +45,10 @@ const PAYMENT_METHODS = {
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' })); // Increased limit for bulk imports
+app.use(express.text({ limit: '50mb' })); // Support for text data
 
-// Users database (enhanced with more details)
+// Users database
 const users = [
   {
     id: 1,
@@ -175,15 +176,58 @@ let transactions = [
 
 let nextId = 7;
 
-// Helper function to convert to USD
+// Helper functions
 const convertToUSD = (amount, currency) => {
   return amount / EXCHANGE_RATES[currency];
 };
 
-// Helper function to format currency
 const formatCurrency = (amount, currency) => {
   const symbols = { MXN: '$', COP: '$', USD: '$' };
   return `${symbols[currency]}${amount.toLocaleString()} ${currency}`;
+};
+
+// Helper function to parse date from MM/DD/YYYY format
+const parseDate = (dateStr) => {
+  try {
+    // Handle MM/DD/YYYY or M/D/YYYY format
+    const parts = dateStr.trim().split('/');
+    if (parts.length === 3) {
+      const month = parseInt(parts[0]);
+      const day = parseInt(parts[1]);
+      const year = parseInt(parts[2]);
+      
+      // Create date in ISO format
+      const date = new Date(year, month - 1, day);
+      return date.toISOString();
+    }
+    return new Date().toISOString(); // Fallback to current date
+  } catch (error) {
+    console.error('Date parsing error:', error);
+    return new Date().toISOString();
+  }
+};
+
+// Helper function to parse amount and remove $ signs
+const parseAmount = (amountStr) => {
+  try {
+    // Remove $ signs, commas, and spaces
+    const cleanAmount = amountStr.toString().replace(/[$,\s]/g, '');
+    return parseFloat(cleanAmount);
+  } catch (error) {
+    console.error('Amount parsing error:', error);
+    return 0;
+  }
+};
+
+// Helper function to normalize user names
+const normalizeUser = (who) => {
+  const whoLower = who.toLowerCase().trim();
+  if (whoLower.includes('ivonne') || whoLower.includes('yvonne')) return 'ivonne';
+  if (whoLower.includes('santi')) return 'santi';
+  if (whoLower.includes('leo')) return 'leo';
+  if (whoLower.includes('laurens')) return 'laurens';
+  if (whoLower.includes('volunteer')) return 'volunteers';
+  return whoLower;
 };
 
 // Auth middleware
@@ -201,6 +245,84 @@ const authenticateToken = (req, res, next) => {
     next();
   });
 };
+
+// BULK IMPORT ENDPOINT
+app.post('/api/bulk-import', authenticateToken, (req, res) => {
+  // Only admins can bulk import
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required for bulk import' });
+  }
+
+  try {
+    const { data, location } = req.body;
+    
+    if (!data || !location) {
+      return res.status(400).json({ error: 'Data and location are required' });
+    }
+
+    const lines = data.trim().split('\n');
+    const importedTransactions = [];
+    const errors = [];
+
+    lines.forEach((line, index) => {
+      try {
+        // Skip empty lines
+        if (!line.trim()) return;
+
+        // Split by | or tab, and clean up
+        const parts = line.split(/[|\t]/).map(part => part.trim());
+        
+        if (parts.length < 6) {
+          errors.push(`Line ${index + 1}: Insufficient data - need at least 6 columns`);
+          return;
+        }
+
+        const [dateStr, who, paymentMethod, category, description, amountStr] = parts;
+
+        // Parse and validate data
+        const parsedDate = parseDate(dateStr);
+        const parsedAmount = parseAmount(amountStr);
+        const normalizedWho = normalizeUser(who);
+        const currency = LOCATION_CURRENCY[location];
+
+        // Determine type based on amount
+        const type = parsedAmount >= 0 ? 'income' : 'expense';
+
+        const transaction = {
+          id: nextId++,
+          description: description || 'Imported transaction',
+          amount: parsedAmount,
+          type,
+          category: category || 'Miscellaneous',
+          paymentMethod: paymentMethod || 'Cash box',
+          location,
+          currency,
+          date: parsedDate,
+          addedBy: normalizedWho,
+          shift: null
+        };
+
+        transactions.push(transaction);
+        importedTransactions.push(transaction);
+
+      } catch (error) {
+        errors.push(`Line ${index + 1}: ${error.message}`);
+      }
+    });
+
+    res.json({
+      success: true,
+      imported: importedTransactions.length,
+      errors: errors.length,
+      errorDetails: errors,
+      message: `Successfully imported ${importedTransactions.length} transactions for ${location}`
+    });
+
+  } catch (error) {
+    console.error('Bulk import error:', error);
+    res.status(500).json({ error: 'Failed to process bulk import' });
+  }
+});
 
 // Get business data (categories, payment methods)
 app.get('/api/business-data', authenticateToken, (req, res) => {
@@ -384,7 +506,7 @@ app.get('/api/category-breakdown', authenticateToken, (req, res) => {
 
 // Health check
 app.get('/api/hello', (req, res) => {
-  res.json({ message: 'Co404 Finance API with Enhanced Business Structure is running!' });
+  res.json({ message: 'Co404 Finance API with Bulk Import is running!' });
 });
 
 // Start server
