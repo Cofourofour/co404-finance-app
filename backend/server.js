@@ -318,8 +318,8 @@ app.post('/api/upload-excel', authenticateToken, upload.single('excelFile'), (re
           return;
         }
 
-        // Expect columns: Date | Who | Payment Method | Category | Description | Amount
-        const [dateStr, who, paymentMethod, category, description, amountStr] = row;
+        // Expect columns: Date | Type | Who | Payment Method | Category | Description | Amount
+        const [dateStr, typeStr, who, paymentMethod, category, description, amountStr] = row;
 
         // Validate required fields
         const validationErrors = [];
@@ -350,13 +350,17 @@ app.post('/api/upload-excel', authenticateToken, upload.single('excelFile'), (re
         const currency = LOCATION_CURRENCY[location];
 
         // Determine type based on amount
-        const type = parsedAmount >= 0 ? 'income' : 'expense';
+        // Use explicit type from column B (handles both "Expense" and "expense")
+        const typeFromColumn = typeStr ? typeStr.toString().toLowerCase().trim() : 'expense';
+        const type = typeFromColumn === 'income' ? 'income' : 'expense';
+        // Convert amount to negative for expenses, positive for income
+        const finalAmount = type === 'expense' ? -Math.abs(parsedAmount) : Math.abs(parsedAmount);
         const validatedCategory = validateCategory(category, type === 'income');
 
         const transaction = {
           id: nextId++,
           description: description.toString().trim() || 'Imported transaction',
-          amount: parsedAmount,
+          amount: finalAmount,
           type,
           category: validatedCategory,
           paymentMethod: normalizedPaymentMethod,
