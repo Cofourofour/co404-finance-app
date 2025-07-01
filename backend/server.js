@@ -1,6 +1,5 @@
 const express = require('express');
 const cors = require('cors');
-const db = require('./database');
 require('dotenv').config();
 
 const app = express();
@@ -10,40 +9,43 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+// In-memory database (will reset when server restarts, but works for demo)
+let transactions = [
+  { id: 1, description: 'Salary - Oaxaca', amount: 3000, type: 'income', location: 'Oaxaca City', date: new Date().toISOString() },
+  { id: 2, description: 'Office Rent', amount: -1200, type: 'expense', location: 'Oaxaca City', date: new Date().toISOString() },
+  { id: 3, description: 'Equipment Purchase', amount: -500, type: 'expense', location: 'Medellín', date: new Date().toISOString() }
+];
+
+let nextId = 4;
+
 // Get all transactions
 app.get('/api/transactions', (req, res) => {
-  db.all('SELECT * FROM transactions ORDER BY date DESC', (err, rows) => {
-    if (err) {
-      res.status(500).json({ error: err.message });
-      return;
-    }
-    res.json(rows);
-  });
+  res.json(transactions.sort((a, b) => new Date(b.date) - new Date(a.date)));
 });
 
 // Add new transaction
 app.post('/api/transactions', (req, res) => {
   const { description, amount, type, location } = req.body;
   
-  db.run(
-    'INSERT INTO transactions (description, amount, type, location) VALUES (?, ?, ?, ?)',
-    [description, amount, type, location || 'Oaxaca City'],
-    function(err) {
-      if (err) {
-        res.status(500).json({ error: err.message });
-        return;
-      }
-      res.json({ id: this.lastID, description, amount, type, location });
-    }
-  );
+  const transaction = {
+    id: nextId++,
+    description,
+    amount: Number(amount),
+    type,
+    location: location || 'Oaxaca City',
+    date: new Date().toISOString()
+  };
+  
+  transactions.push(transaction);
+  res.json(transaction);
 });
 
-// Your original hello endpoint
+// Health check
 app.get('/api/hello', (req, res) => {
-  res.json({ message: 'Hello from Co404 Finance API!' });
+  res.json({ message: 'Co404 Finance API is running!' });
 });
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`Co404 Finance Server running on http://localhost:${PORT}`);
+  console.log(`Co404 Finance Server running on port ${PORT}`);
 });
