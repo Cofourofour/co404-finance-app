@@ -2,11 +2,29 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const multer = require('multer');
+const XLSX = require('xlsx');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'co404-super-secret-key-change-this';
+
+// Configure multer for file uploads
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
+        file.mimetype === 'application/vnd.ms-excel' ||
+        file.originalname.endsWith('.xlsx') ||
+        file.originalname.endsWith('.xls')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only Excel files (.xlsx, .xls) are allowed'));
+    }
+  }
+});
 
 // Currency conversion rates
 const EXCHANGE_RATES = {
@@ -45,8 +63,8 @@ const PAYMENT_METHODS = {
 
 // Middleware
 app.use(cors());
-app.use(express.json({ limit: '50mb' })); // Increased limit for bulk imports
-app.use(express.text({ limit: '50mb' })); // Support for text data
+app.use(express.json({ limit: '50mb' }));
+app.use(express.text({ limit: '50mb' }));
 
 // Users database
 const users = [
@@ -119,62 +137,10 @@ let transactions = [
     date: new Date().toISOString(), 
     addedBy: 'ivonne',
     shift: null
-  },
-  { 
-    id: 3, 
-    description: 'Coffee beans for guests', 
-    amount: -240000, 
-    type: 'expense', 
-    category: 'Coffee',
-    paymentMethod: 'Cash box',
-    location: 'Medellín', 
-    currency: 'COP', 
-    date: new Date().toISOString(), 
-    addedBy: 'leo',
-    shift: null
-  },
-  { 
-    id: 4, 
-    description: 'Dorm bed revenue', 
-    amount: 400000, 
-    type: 'income', 
-    category: 'Guest stay',
-    paymentMethod: 'Cash box',
-    location: 'Medellín', 
-    currency: 'COP', 
-    date: new Date().toISOString(), 
-    addedBy: 'leo',
-    shift: null
-  },
-  { 
-    id: 5, 
-    description: 'Beer sales to guests', 
-    amount: 320, 
-    type: 'income', 
-    category: 'Beer',
-    paymentMethod: 'Pouch manager',
-    location: 'San Cristóbal', 
-    currency: 'MXN', 
-    date: new Date().toISOString(), 
-    addedBy: 'santi',
-    shift: null
-  },
-  { 
-    id: 6, 
-    description: 'Cleaning supplies purchase', 
-    amount: -180, 
-    type: 'expense', 
-    category: 'Cleaning supplies',
-    paymentMethod: 'Cash box',
-    location: 'San Cristóbal', 
-    currency: 'MXN', 
-    date: new Date().toISOString(), 
-    addedBy: 'santi',
-    shift: null
   }
 ];
 
-let nextId = 7;
+let nextId = 3;
 
 // Helper functions
 const convertToUSD = (amount, currency) => {
@@ -189,17 +155,38 @@ const formatCurrency = (amount, currency) => {
 // Helper function to parse date from MM/DD/YYYY format
 const parseDate = (dateStr) => {
   try {
+    if (!dateStr) return new Date().toISOString();
+    
+    // Handle different date formats
+    const str = dateStr.toString().trim();
+    
+    // Handle Excel date numbers
+    if (!isNaN(str) && str.length > 4) {
+      const excelDate = new Date((parseInt(str) - 25569) * 86400 * 1000);
+      if (excelDate.getFullYear() > 1900) {
+        return excelDate.toISOString();
+      }
+    }
+    
     // Handle MM/DD/YYYY or M/D/YYYY format
-    const parts = dateStr.trim().split('/');
+    const parts = str.split('/');
     if (parts.length === 3) {
       const month = parseInt(parts[0]);
       const day = parseInt(parts[1]);
       const year = parseInt(parts[2]);
       
-      // Create date in ISO format
-      const date = new Date(year, month - 1, day);
-      return date.toISOString();
+      if (month >= 1 && month <= 12 && day >= 1 && day <= 31 && year > 1900) {
+        const date = new Date(year, month - 1, day);
+        return date.toISOString();
+      }
     }
+    
+    // Try parsing as standard date string
+    const parsedDate = new Date(str);
+    if (!isNaN(parsedDate.getTime()) && parsedDate.getFullYear() > 1900) {
+      return parsedDate.toISOString();
+    }
+    
     return new Date().toISOString(); // Fallback to current date
   } catch (error) {
     console.error('Date parsing error:', error);
@@ -210,9 +197,17 @@ const parseDate = (dateStr) => {
 // Helper function to parse amount and remove $ signs
 const parseAmount = (amountStr) => {
   try {
-    // Remove $ signs, commas, and spaces
-    const cleanAmount = amountStr.toString().replace(/[$,\s]/g, '');
-    return parseFloat(cleanAmount);
+    if (amountStr === null || amountStr === undefined) return 0;
+    
+    // Convert to string and clean
+    const cleanAmount = amountStr.toString()
+      .replace(/[$,\s()]/g, '') // Remove $, commas, spaces, parentheses
+      .replace(/[^\d.-]/g, ''); // Keep only digits, dots, and minus signs
+    
+    if (!cleanAmount || cleanAmount === '-') return 0;
+    
+    const amount = parseFloat(cleanAmount);
+    return isNaN(amount) ? 0 : amount;
   } catch (error) {
     console.error('Amount parsing error:', error);
     return 0;
@@ -221,13 +216,49 @@ const parseAmount = (amountStr) => {
 
 // Helper function to normalize user names
 const normalizeUser = (who) => {
-  const whoLower = who.toLowerCase().trim();
+  if (!who) return 'unknown';
+  
+  const whoLower = who.toString().toLowerCase().trim();
   if (whoLower.includes('ivonne') || whoLower.includes('yvonne')) return 'ivonne';
   if (whoLower.includes('santi')) return 'santi';
   if (whoLower.includes('leo')) return 'leo';
   if (whoLower.includes('laurens')) return 'laurens';
   if (whoLower.includes('volunteer')) return 'volunteers';
   return whoLower;
+};
+
+// Helper function to normalize payment methods
+const normalizePaymentMethod = (method) => {
+  if (!method) return 'Cash box';
+  
+  const methodStr = method.toString().toLowerCase().trim();
+  if (methodStr.includes('cash') && methodStr.includes('box')) return 'Cash box';
+  if (methodStr.includes('pouch')) return 'Pouch manager';
+  if (methodStr.includes('card') && methodStr.includes('co404')) return 'Card CO404';
+  if (methodStr.includes('card') && methodStr.includes('manager')) return 'Card manager';
+  if (methodStr.includes('laurens') && methodStr.includes('safe')) return 'Laurens safe';
+  
+  return method.toString().trim() || 'Cash box';
+};
+
+// Helper function to validate category
+const validateCategory = (category, isIncome) => {
+  if (!category) return isIncome ? 'Non-guests' : 'Miscellaneous';
+  
+  const categoryStr = category.toString().trim();
+  const validCategories = isIncome ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+  
+  // Check exact match first
+  if (validCategories.includes(categoryStr)) return categoryStr;
+  
+  // Check partial matches
+  const lowerCategory = categoryStr.toLowerCase();
+  const match = validCategories.find(cat => 
+    cat.toLowerCase().includes(lowerCategory) || 
+    lowerCategory.includes(cat.toLowerCase())
+  );
+  
+  return match || (isIncome ? 'Non-guests' : 'Miscellaneous');
 };
 
 // Auth middleware
@@ -246,55 +277,89 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// BULK IMPORT ENDPOINT
-app.post('/api/bulk-import', authenticateToken, (req, res) => {
-  // Only admins can bulk import
+// EXCEL FILE UPLOAD ENDPOINT
+app.post('/api/upload-excel', authenticateToken, upload.single('excelFile'), (req, res) => {
+  // Only admins can upload files
   if (req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Admin access required for bulk import' });
+    return res.status(403).json({ error: 'Admin access required for file upload' });
   }
 
   try {
-    const { data, location } = req.body;
-    
-    if (!data || !location) {
-      return res.status(400).json({ error: 'Data and location are required' });
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const lines = data.trim().split('\n');
+    const { location } = req.body;
+    if (!location) {
+      return res.status(400).json({ error: 'Location is required' });
+    }
+
+    // Parse Excel file
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheetName = workbook.SheetNames[0]; // Use first sheet
+    const worksheet = workbook.Sheets[sheetName];
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+    if (jsonData.length === 0) {
+      return res.status(400).json({ error: 'Excel file is empty' });
+    }
+
     const importedTransactions = [];
     const errors = [];
+    const detailedErrors = [];
 
-    lines.forEach((line, index) => {
+    // Skip header row and process data
+    jsonData.slice(1).forEach((row, index) => {
+      const rowNumber = index + 2; // +2 because we skip header and arrays are 0-indexed
+      
       try {
-        // Skip empty lines
-        if (!line.trim()) return;
-
-        // Split by | or tab, and clean up
-        const parts = line.split(/[|\t]/).map(part => part.trim());
-        
-        if (parts.length < 6) {
-          errors.push(`Line ${index + 1}: Insufficient data - need at least 6 columns`);
+        // Skip empty rows
+        if (!row || row.every(cell => !cell || cell.toString().trim() === '')) {
           return;
         }
 
-        const [dateStr, who, paymentMethod, category, description, amountStr] = parts;
+        // Expect columns: Date | Who | Payment Method | Category | Description | Amount
+        const [dateStr, who, paymentMethod, category, description, amountStr] = row;
+
+        // Validate required fields
+        const validationErrors = [];
+        if (!dateStr) validationErrors.push('Missing date');
+        if (!who) validationErrors.push('Missing who');
+        if (!paymentMethod) validationErrors.push('Missing payment method');
+        if (!category) validationErrors.push('Missing category');
+        if (!description) validationErrors.push('Missing description');
+        if (amountStr === undefined || amountStr === null || amountStr === '') validationErrors.push('Missing amount');
+
+        if (validationErrors.length > 0) {
+          const errorMsg = `Row ${rowNumber}: ${validationErrors.join(', ')}`;
+          errors.push(errorMsg);
+          detailedErrors.push({
+            row: rowNumber,
+            data: row,
+            errors: validationErrors,
+            success: false
+          });
+          return;
+        }
 
         // Parse and validate data
         const parsedDate = parseDate(dateStr);
         const parsedAmount = parseAmount(amountStr);
         const normalizedWho = normalizeUser(who);
+        const normalizedPaymentMethod = normalizePaymentMethod(paymentMethod);
         const currency = LOCATION_CURRENCY[location];
 
         // Determine type based on amount
         const type = parsedAmount >= 0 ? 'income' : 'expense';
+        const validatedCategory = validateCategory(category, type === 'income');
 
         const transaction = {
           id: nextId++,
-          description: description || 'Imported transaction',
+          description: description.toString().trim() || 'Imported transaction',
           amount: parsedAmount,
           type,
-          category: category || 'Miscellaneous',
-          paymentMethod: paymentMethod || 'Cash box',
+          category: validatedCategory,
+          paymentMethod: normalizedPaymentMethod,
           location,
           currency,
           date: parsedDate,
@@ -304,9 +369,30 @@ app.post('/api/bulk-import', authenticateToken, (req, res) => {
 
         transactions.push(transaction);
         importedTransactions.push(transaction);
+        
+        detailedErrors.push({
+          row: rowNumber,
+          data: row,
+          transaction: {
+            description: transaction.description,
+            amount: formatCurrency(transaction.amount, currency),
+            type: transaction.type,
+            category: transaction.category,
+            paymentMethod: transaction.paymentMethod
+          },
+          errors: [],
+          success: true
+        });
 
       } catch (error) {
-        errors.push(`Line ${index + 1}: ${error.message}`);
+        const errorMsg = `Row ${rowNumber}: ${error.message}`;
+        errors.push(errorMsg);
+        detailedErrors.push({
+          row: rowNumber,
+          data: row,
+          errors: [error.message],
+          success: false
+        });
       }
     });
 
@@ -315,12 +401,17 @@ app.post('/api/bulk-import', authenticateToken, (req, res) => {
       imported: importedTransactions.length,
       errors: errors.length,
       errorDetails: errors,
+      totalRows: jsonData.length - 1, // -1 for header
+      detailedResults: detailedErrors,
       message: `Successfully imported ${importedTransactions.length} transactions for ${location}`
     });
 
   } catch (error) {
-    console.error('Bulk import error:', error);
-    res.status(500).json({ error: 'Failed to process bulk import' });
+    console.error('Excel import error:', error);
+    res.status(500).json({ 
+      error: 'Failed to process Excel file', 
+      details: error.message 
+    });
   }
 });
 
@@ -435,7 +526,7 @@ app.post('/api/transactions', authenticateToken, (req, res) => {
     currency,
     date: new Date().toISOString(),
     addedBy: req.user.username,
-    shift: null // Will add shift tracking later
+    shift: null
   };
   
   transactions.push(transaction);
@@ -474,35 +565,6 @@ app.get('/api/location-summary', authenticateToken, (req, res) => {
   res.json(locationSummary);
 });
 
-// Get category breakdown
-app.get('/api/category-breakdown', authenticateToken, (req, res) => {
-  const { location } = req.query;
-  let filteredTransactions = transactions;
-
-  // Apply same filtering logic as transactions
-  if (req.user.role === 'manager') {
-    filteredTransactions = transactions.filter(t => t.location === req.user.location);
-  } else if (req.user.role === 'admin' && location && location !== 'all') {
-    filteredTransactions = transactions.filter(t => t.location === location);
-  }
-
-  // Group by category
-  const categoryBreakdown = {};
-  filteredTransactions.forEach(t => {
-    if (!categoryBreakdown[t.category]) {
-      categoryBreakdown[t.category] = { income: 0, expenses: 0, count: 0 };
-    }
-    
-    if (t.amount > 0) {
-      categoryBreakdown[t.category].income += convertToUSD(t.amount, t.currency);
-    } else {
-      categoryBreakdown[t.category].expenses += Math.abs(convertToUSD(t.amount, t.currency));
-    }
-    categoryBreakdown[t.category].count++;
-  });
-
-  res.json(categoryBreakdown);
-});
 // Clear all transactions (admin only)
 app.delete('/api/clear-transactions', authenticateToken, (req, res) => {
   // Only admins can clear all transactions
@@ -511,7 +573,7 @@ app.delete('/api/clear-transactions', authenticateToken, (req, res) => {
   }
 
   try {
-    // Keep only the first 2 sample transactions or clear completely
+    // Clear all transactions
     transactions = [];
     nextId = 1;
     
@@ -524,9 +586,10 @@ app.delete('/api/clear-transactions', authenticateToken, (req, res) => {
     res.status(500).json({ error: 'Failed to clear transactions' });
   }
 });
+
 // Health check
 app.get('/api/hello', (req, res) => {
-  res.json({ message: 'Co404 Finance API with Bulk Import is running!' });
+  res.json({ message: 'Co404 Finance API with Excel Upload is running!' });
 });
 
 // Start server
