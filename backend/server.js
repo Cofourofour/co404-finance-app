@@ -423,7 +423,7 @@ function insertTransaction(transaction) {
   });
 }
 
-// EXCEL FILE UPLOAD ENDPOINT
+// 🎯 UPDATED EXCEL FILE UPLOAD ENDPOINT - FIXED TYPE COLUMN PARSING
 app.post('/api/upload-excel', authenticateToken, upload.single('excelFile'), async (req, res) => {
   // Only admins can upload files
   if (req.user.role !== 'admin') {
@@ -440,6 +440,8 @@ app.post('/api/upload-excel', authenticateToken, upload.single('excelFile'), asy
       return res.status(400).json({ error: 'Location is required' });
     }
 
+    console.log(`🔄 Starting Excel import for ${location}...`);
+
     // Parse Excel file
     const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0]; // Use first sheet
@@ -454,6 +456,8 @@ app.post('/api/upload-excel', authenticateToken, upload.single('excelFile'), asy
     const errors = [];
     const detailedErrors = [];
 
+    console.log(`📊 Processing ${jsonData.length - 1} rows (excluding header)...`);
+
     // Skip header row and process data
     for (let index = 1; index < jsonData.length; index++) {
       const row = jsonData[index];
@@ -462,15 +466,27 @@ app.post('/api/upload-excel', authenticateToken, upload.single('excelFile'), asy
       try {
         // Skip empty rows
         if (!row || row.every(cell => !cell || cell.toString().trim() === '')) {
+          console.log(`⏭️  Skipping empty row ${rowNumber}`);
           continue;
         }
 
-        // Expect columns: Date | Type | Who | Payment Method | Category | Description | Amount
+        // Expected columns: Date | Type | Who | Payment Method | Category | Description | Amount
         const [dateStr, typeStr, who, paymentMethod, category, description, amountStr] = row;
+
+        console.log(`🔍 Processing row ${rowNumber}:`, {
+          date: dateStr,
+          type: typeStr,
+          who: who,
+          paymentMethod: paymentMethod,
+          category: category,
+          description: description,
+          amount: amountStr
+        });
 
         // Validate required fields
         const validationErrors = [];
         if (!dateStr) validationErrors.push('Missing date');
+        if (!typeStr) validationErrors.push('Missing type'); // Now required!
         if (!who) validationErrors.push('Missing who');
         if (!paymentMethod) validationErrors.push('Missing payment method');
         if (!category) validationErrors.push('Missing category');
@@ -486,6 +502,7 @@ app.post('/api/upload-excel', authenticateToken, upload.single('excelFile'), asy
             errors: validationErrors,
             success: false
           });
+          console.log(`❌ Row ${rowNumber} validation failed:`, validationErrors);
           continue;
         }
 
@@ -496,12 +513,22 @@ app.post('/api/upload-excel', authenticateToken, upload.single('excelFile'), asy
         const normalizedPaymentMethod = normalizePaymentMethod(paymentMethod);
         const currency = LOCATION_CURRENCY[location];
 
-        // Use explicit type from column B (handles both "Expense" and "expense")
-        const typeFromColumn = typeStr ? typeStr.toString().toLowerCase().trim() : 'expense';
-        const type = typeFromColumn === 'income' ? 'income' : 'expense';
-        // Convert amount to negative for expenses, positive for income
-        const finalAmount = type === 'expense' ? -Math.abs(parsedAmount) : Math.abs(parsedAmount);
-        const validatedCategory = validateCategory(category, type === 'income');
+        // 🎯 KEY FIX: Read Type from column B explicitly (case-insensitive)
+        const typeFromColumn = typeStr.toString().toLowerCase().trim();
+        const isIncome = typeFromColumn === 'income';
+        const type = isIncome ? 'income' : 'expense';
+        
+        // Convert amount: expenses to negative, income to positive
+        const finalAmount = isIncome ? Math.abs(parsedAmount) : -Math.abs(parsedAmount);
+        
+        const validatedCategory = validateCategory(category, isIncome);
+
+        console.log(`✅ Row ${rowNumber} processed:`, {
+          type: type,
+          amount: finalAmount,
+          originalAmount: parsedAmount,
+          isIncome: isIncome
+        });
 
         const transaction = {
           description: description.toString().trim() || 'Imported transaction',
@@ -543,8 +570,11 @@ app.post('/api/upload-excel', authenticateToken, upload.single('excelFile'), asy
           errors: [error.message],
           success: false
         });
+        console.error(`❌ Row ${rowNumber} processing error:`, error);
       }
     }
+
+    console.log(`🎉 Excel import completed! Imported: ${importedTransactions.length}, Errors: ${errors.length}`);
 
     res.json({
       success: true,
@@ -553,7 +583,7 @@ app.post('/api/upload-excel', authenticateToken, upload.single('excelFile'), asy
       errorDetails: errors,
       totalRows: jsonData.length - 1, // -1 for header
       detailedResults: detailedErrors,
-      message: `Successfully imported ${importedTransactions.length} transactions for ${location}`
+      message: `Successfully imported ${importedTransactions.length} transactions for ${location}! ✨ Type column parsing fixed 🚀`
     });
 
   } catch (error) {
