@@ -4,11 +4,178 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const XLSX = require('xlsx');
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'co404-super-secret-key-change-this';
+
+// Database setup
+const dbPath = path.join(__dirname, 'co404_finance.db');
+const db = new sqlite3.Database(dbPath, (err) => {
+  if (err) {
+    console.error('Error opening database:', err.message);
+  } else {
+    console.log('Connected to SQLite database at:', dbPath);
+    initializeDatabase();
+  }
+});
+
+// Initialize database tables
+function initializeDatabase() {
+  // Users table
+  db.run(`CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    role TEXT NOT NULL,
+    name TEXT NOT NULL,
+    location TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`, (err) => {
+    if (err) {
+      console.error('Error creating users table:', err);
+    } else {
+      console.log('Users table ready');
+      insertDefaultUsers();
+    }
+  });
+
+  // Transactions table
+  db.run(`CREATE TABLE IF NOT EXISTS transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    description TEXT NOT NULL,
+    amount REAL NOT NULL,
+    type TEXT NOT NULL,
+    category TEXT NOT NULL,
+    paymentMethod TEXT NOT NULL,
+    location TEXT NOT NULL,
+    currency TEXT NOT NULL,
+    date DATETIME NOT NULL,
+    addedBy TEXT NOT NULL,
+    shift TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`, (err) => {
+    if (err) {
+      console.error('Error creating transactions table:', err);
+    } else {
+      console.log('Transactions table ready');
+      insertSampleTransactions();
+    }
+  });
+}
+
+// Insert default users
+function insertDefaultUsers() {
+  const defaultUsers = [
+    {
+      username: 'laurens',
+      password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+      role: 'admin',
+      name: 'Laurens',
+      location: 'all'
+    },
+    {
+      username: 'santi',
+      password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+      role: 'manager',
+      name: 'Santi',
+      location: 'San Cristóbal'
+    },
+    {
+      username: 'leo',
+      password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+      role: 'manager',
+      name: 'Leo',
+      location: 'Medellín'
+    },
+    {
+      username: 'ivonne',
+      password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+      role: 'manager',
+      name: 'Ivonne',
+      location: 'Oaxaca City'
+    },
+    {
+      username: 'volunteer1',
+      password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+      role: 'volunteer',
+      name: 'Alex (Volunteer)',
+      location: 'Oaxaca City'
+    }
+  ];
+
+  // Check if users already exist
+  db.get("SELECT COUNT(*) as count FROM users", (err, row) => {
+    if (err) {
+      console.error('Error checking users:', err);
+      return;
+    }
+    
+    if (row.count === 0) {
+      console.log('Inserting default users...');
+      const stmt = db.prepare("INSERT INTO users (username, password, role, name, location) VALUES (?, ?, ?, ?, ?)");
+      
+      defaultUsers.forEach(user => {
+        stmt.run([user.username, user.password, user.role, user.name, user.location]);
+      });
+      
+      stmt.finalize();
+      console.log('Default users inserted');
+    }
+  });
+}
+
+// Insert sample transactions
+function insertSampleTransactions() {
+  db.get("SELECT COUNT(*) as count FROM transactions", (err, row) => {
+    if (err) {
+      console.error('Error checking transactions:', err);
+      return;
+    }
+    
+    if (row.count === 0) {
+      console.log('Inserting sample transactions...');
+      const sampleTransactions = [
+        {
+          description: 'Private room booking',
+          amount: 1800,
+          type: 'income',
+          category: 'Guest stay',
+          paymentMethod: 'Card CO404',
+          location: 'Oaxaca City',
+          currency: 'MXN',
+          date: new Date().toISOString(),
+          addedBy: 'ivonne'
+        },
+        {
+          description: 'Monthly rent payment',
+          amount: -25000,
+          type: 'expense',
+          category: 'Rent',
+          paymentMethod: 'Card CO404',
+          location: 'Oaxaca City',
+          currency: 'MXN',
+          date: new Date().toISOString(),
+          addedBy: 'ivonne'
+        }
+      ];
+
+      const stmt = db.prepare(`INSERT INTO transactions 
+        (description, amount, type, category, paymentMethod, location, currency, date, addedBy, shift) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+      
+      sampleTransactions.forEach(t => {
+        stmt.run([t.description, t.amount, t.type, t.category, t.paymentMethod, t.location, t.currency, t.date, t.addedBy, null]);
+      });
+      
+      stmt.finalize();
+      console.log('Sample transactions inserted');
+    }
+  });
+}
 
 // Configure multer for file uploads
 const upload = multer({ 
@@ -65,82 +232,6 @@ const PAYMENT_METHODS = {
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.text({ limit: '50mb' }));
-
-// Users database
-const users = [
-  {
-    id: 1,
-    username: 'laurens',
-    password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
-    role: 'admin',
-    name: 'Laurens',
-    location: 'all'
-  },
-  {
-    id: 2,
-    username: 'santi',
-    password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
-    role: 'manager',
-    name: 'Santi',
-    location: 'San Cristóbal'
-  },
-  {
-    id: 3,
-    username: 'leo',
-    password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
-    role: 'manager',
-    name: 'Leo',
-    location: 'Medellín'
-  },
-  {
-    id: 4,
-    username: 'ivonne',
-    password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
-    role: 'manager',
-    name: 'Ivonne',
-    location: 'Oaxaca City'
-  },
-  {
-    id: 5,
-    username: 'volunteer1',
-    password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
-    role: 'volunteer',
-    name: 'Alex (Volunteer)',
-    location: 'Oaxaca City'
-  }
-];
-
-// Enhanced transactions with Co404 structure
-let transactions = [
-  { 
-    id: 1, 
-    description: 'Private room booking', 
-    amount: 1800, 
-    type: 'income', 
-    category: 'Guest stay',
-    paymentMethod: 'Card CO404',
-    location: 'Oaxaca City', 
-    currency: 'MXN', 
-    date: new Date().toISOString(), 
-    addedBy: 'ivonne',
-    shift: null
-  },
-  { 
-    id: 2, 
-    description: 'Monthly rent payment', 
-    amount: -25000, 
-    type: 'expense', 
-    category: 'Rent',
-    paymentMethod: 'Card CO404',
-    location: 'Oaxaca City', 
-    currency: 'MXN', 
-    date: new Date().toISOString(), 
-    addedBy: 'ivonne',
-    shift: null
-  }
-];
-
-let nextId = 3;
 
 // Helper functions
 const convertToUSD = (amount, currency) => {
@@ -277,8 +368,63 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
+// Database helper functions
+function getUserById(id) {
+  return new Promise((resolve, reject) => {
+    db.get("SELECT * FROM users WHERE id = ?", [id], (err, row) => {
+      if (err) reject(err);
+      else resolve(row);
+    });
+  });
+}
+
+function getUserByUsername(username) {
+  return new Promise((resolve, reject) => {
+    db.get("SELECT * FROM users WHERE username = ?", [username], (err, row) => {
+      if (err) reject(err);
+      else resolve(row);
+    });
+  });
+}
+
+function getTransactions(whereClause = '', params = []) {
+  return new Promise((resolve, reject) => {
+    const query = `SELECT * FROM transactions ${whereClause} ORDER BY date DESC`;
+    db.all(query, params, (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows);
+    });
+  });
+}
+
+function insertTransaction(transaction) {
+  return new Promise((resolve, reject) => {
+    const stmt = db.prepare(`INSERT INTO transactions 
+      (description, amount, type, category, paymentMethod, location, currency, date, addedBy, shift) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    
+    stmt.run([
+      transaction.description,
+      transaction.amount,
+      transaction.type,
+      transaction.category,
+      transaction.paymentMethod,
+      transaction.location,
+      transaction.currency,
+      transaction.date,
+      transaction.addedBy,
+      transaction.shift
+    ], function(err) {
+      if (err) reject(err);
+      else resolve({ id: this.lastID, ...transaction });
+    });
+    
+    stmt.finalize();
+  });
+}
+
 // EXCEL FILE UPLOAD ENDPOINT
-app.post('/api/upload-excel', authenticateToken, upload.single('excelFile'), (req, res) => {
+app.post('/api/upload-excel', authenticateToken, upload.single('excelFile'), async (req, res) => {
   // Only admins can upload files
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Admin access required for file upload' });
@@ -309,13 +455,14 @@ app.post('/api/upload-excel', authenticateToken, upload.single('excelFile'), (re
     const detailedErrors = [];
 
     // Skip header row and process data
-    jsonData.slice(1).forEach((row, index) => {
-      const rowNumber = index + 2; // +2 because we skip header and arrays are 0-indexed
+    for (let index = 1; index < jsonData.length; index++) {
+      const row = jsonData[index];
+      const rowNumber = index + 1;
       
       try {
         // Skip empty rows
         if (!row || row.every(cell => !cell || cell.toString().trim() === '')) {
-          return;
+          continue;
         }
 
         // Expect columns: Date | Type | Who | Payment Method | Category | Description | Amount
@@ -339,7 +486,7 @@ app.post('/api/upload-excel', authenticateToken, upload.single('excelFile'), (re
             errors: validationErrors,
             success: false
           });
-          return;
+          continue;
         }
 
         // Parse and validate data
@@ -349,7 +496,6 @@ app.post('/api/upload-excel', authenticateToken, upload.single('excelFile'), (re
         const normalizedPaymentMethod = normalizePaymentMethod(paymentMethod);
         const currency = LOCATION_CURRENCY[location];
 
-        // Determine type based on amount
         // Use explicit type from column B (handles both "Expense" and "expense")
         const typeFromColumn = typeStr ? typeStr.toString().toLowerCase().trim() : 'expense';
         const type = typeFromColumn === 'income' ? 'income' : 'expense';
@@ -358,7 +504,6 @@ app.post('/api/upload-excel', authenticateToken, upload.single('excelFile'), (re
         const validatedCategory = validateCategory(category, type === 'income');
 
         const transaction = {
-          id: nextId++,
           description: description.toString().trim() || 'Imported transaction',
           amount: finalAmount,
           type,
@@ -371,8 +516,9 @@ app.post('/api/upload-excel', authenticateToken, upload.single('excelFile'), (re
           shift: null
         };
 
-        transactions.push(transaction);
-        importedTransactions.push(transaction);
+        // Insert into database
+        const insertedTransaction = await insertTransaction(transaction);
+        importedTransactions.push(insertedTransaction);
         
         detailedErrors.push({
           row: rowNumber,
@@ -398,7 +544,7 @@ app.post('/api/upload-excel', authenticateToken, upload.single('excelFile'), (re
           success: false
         });
       }
-    });
+    }
 
     res.json({
       success: true,
@@ -437,149 +583,261 @@ app.get('/api/business-data', authenticateToken, (req, res) => {
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
   
-  const user = users.find(u => u.username === username);
-  if (!user) {
-    return res.status(401).json({ error: 'Invalid credentials' });
+  try {
+    const user = await getUserByUsername(username);
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const validPassword = password === 'admin123' || password === 'manager123' || password === 'volunteer123';
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const token = jwt.sign(
+      { id: user.id, username: user.username, role: user.role, location: user.location },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        username: user.username,
+        name: user.name,
+        role: user.role,
+        location: user.location
+      }
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
+});
 
-  const validPassword = password === 'admin123' || password === 'manager123' || password === 'volunteer123';
-  if (!validPassword) {
-    return res.status(401).json({ error: 'Invalid credentials' });
-  }
-
-  const token = jwt.sign(
-    { id: user.id, username: user.username, role: user.role, location: user.location },
-    JWT_SECRET,
-    { expiresIn: '24h' }
-  );
-
-  res.json({
-    token,
-    user: {
+// Get current user info
+app.get('/api/me', authenticateToken, async (req, res) => {
+  try {
+    const user = await getUserById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json({
       id: user.id,
       username: user.username,
       name: user.name,
       role: user.role,
       location: user.location
-    }
-  });
-});
-
-// Get current user info
-app.get('/api/me', authenticateToken, (req, res) => {
-  const user = users.find(u => u.id === req.user.id);
-  if (!user) {
-    return res.status(404).json({ error: 'User not found' });
+    });
+  } catch (error) {
+    console.error('Get user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
-  
-  res.json({
-    id: user.id,
-    username: user.username,
-    name: user.name,
-    role: user.role,
-    location: user.location
-  });
 });
 
 // Get transactions with optional location filter
-app.get('/api/transactions', authenticateToken, (req, res) => {
-  const { location } = req.query;
-  let filteredTransactions = transactions;
+app.get('/api/transactions', authenticateToken, async (req, res) => {
+  try {
+    const { location } = req.query;
+    let whereClause = '';
+    let params = [];
 
-  // Filter based on user role first
-  if (req.user.role === 'manager') {
-    filteredTransactions = transactions.filter(t => t.location === req.user.location);
-  } else if (req.user.role === 'volunteer') {
-    // Volunteers see only their own transactions
-    filteredTransactions = transactions.filter(t => t.addedBy === req.user.username);
-  } else if (req.user.role === 'admin' && location && location !== 'all') {
-    // Admin can filter by specific location
-    filteredTransactions = transactions.filter(t => t.location === location);
+    // Filter based on user role first
+    if (req.user.role === 'manager') {
+      whereClause = 'WHERE location = ?';
+      params = [req.user.location];
+    } else if (req.user.role === 'volunteer') {
+      // Volunteers see only their own transactions
+      whereClause = 'WHERE addedBy = ?';
+      params = [req.user.username];
+    } else if (req.user.role === 'admin' && location && location !== 'all') {
+      // Admin can filter by specific location
+      whereClause = 'WHERE location = ?';
+      params = [location];
+    }
+
+    const transactions = await getTransactions(whereClause, params);
+
+    // Add USD conversion for display
+    const transactionsWithUSD = transactions.map(t => ({
+      ...t,
+      amountUSD: convertToUSD(t.amount, t.currency),
+      formattedAmount: formatCurrency(t.amount, t.currency)
+    }));
+
+    res.json(transactionsWithUSD);
+  } catch (error) {
+    console.error('Get transactions error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
-
-  // Add USD conversion for display
-  const transactionsWithUSD = filteredTransactions.map(t => ({
-    ...t,
-    amountUSD: convertToUSD(t.amount, t.currency),
-    formattedAmount: formatCurrency(t.amount, t.currency)
-  }));
-
-  res.json(transactionsWithUSD.sort((a, b) => new Date(b.date) - new Date(a.date)));
 });
 
 // Add new transaction
-app.post('/api/transactions', authenticateToken, (req, res) => {
-  const { description, amount, type, location, category, paymentMethod } = req.body;
-  
-  // Determine location and currency
-  let transactionLocation = location;
-  if (req.user.role === 'manager' || req.user.role === 'volunteer') {
-    transactionLocation = req.user.location;
+app.post('/api/transactions', authenticateToken, async (req, res) => {
+  try {
+    const { description, amount, type, location, category, paymentMethod } = req.body;
+    
+    // Determine location and currency
+    let transactionLocation = location;
+    if (req.user.role === 'manager' || req.user.role === 'volunteer') {
+      transactionLocation = req.user.location;
+    }
+    
+    const currency = LOCATION_CURRENCY[transactionLocation];
+    
+    const transaction = {
+      description,
+      amount: Number(amount),
+      type,
+      category: category || 'Miscellaneous',
+      paymentMethod: paymentMethod || 'Cash box',
+      location: transactionLocation,
+      currency,
+      date: new Date().toISOString(),
+      addedBy: req.user.username,
+      shift: null
+    };
+    
+    const insertedTransaction = await insertTransaction(transaction);
+    
+    // Return with USD conversion
+    const transactionWithUSD = {
+      ...insertedTransaction,
+      amountUSD: convertToUSD(insertedTransaction.amount, currency),
+      formattedAmount: formatCurrency(insertedTransaction.amount, currency)
+    };
+    
+    res.json(transactionWithUSD);
+  } catch (error) {
+    console.error('Add transaction error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
-  
-  const currency = LOCATION_CURRENCY[transactionLocation];
-  
-  const transaction = {
-    id: nextId++,
-    description,
-    amount: Number(amount),
-    type,
-    category: category || 'Miscellaneous',
-    paymentMethod: paymentMethod || 'Cash box',
-    location: transactionLocation,
-    currency,
-    date: new Date().toISOString(),
-    addedBy: req.user.username,
-    shift: null
-  };
-  
-  transactions.push(transaction);
-  
-  // Return with USD conversion
-  const transactionWithUSD = {
-    ...transaction,
-    amountUSD: convertToUSD(transaction.amount, currency),
-    formattedAmount: formatCurrency(transaction.amount, currency)
-  };
-  
-  res.json(transactionWithUSD);
 });
 
 // Get location summary (for admin dashboard)
-app.get('/api/location-summary', authenticateToken, (req, res) => {
+app.get('/api/location-summary', authenticateToken, async (req, res) => {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
-  const locationSummary = ['San Cristóbal', 'Oaxaca City', 'Medellín'].map(location => {
-    const locationTransactions = transactions.filter(t => t.location === location);
-    const income = locationTransactions.filter(t => t.amount > 0).reduce((sum, t) => sum + convertToUSD(t.amount, t.currency), 0);
-    const expenses = Math.abs(locationTransactions.filter(t => t.amount < 0).reduce((sum, t) => sum + convertToUSD(t.amount, t.currency), 0));
+  try {
+    const locationSummary = [];
     
-    return {
-      name: location,
-      currency: LOCATION_CURRENCY[location],
-      income,
-      expenses,
-      net: income - expenses,
-      transactionCount: locationTransactions.length
-    };
-  });
+    for (const location of ['San Cristóbal', 'Oaxaca City', 'Medellín']) {
+      const transactions = await getTransactions('WHERE location = ?', [location]);
+      const income = transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + convertToUSD(t.amount, t.currency), 0);
+      const expenses = Math.abs(transactions.filter(t => t.amount < 0).reduce((sum, t) => sum + convertToUSD(t.amount, t.currency), 0));
+      
+      locationSummary.push({
+        name: location,
+        currency: LOCATION_CURRENCY[location],
+        income,
+        expenses,
+        net: income - expenses,
+        transactionCount: transactions.length
+      });
+    }
 
-  res.json(locationSummary);
+    res.json(locationSummary);
+  } catch (error) {
+    console.error('Location summary error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// NEW: Get monthly financial data for graphs
+app.get('/api/monthly-data', authenticateToken, async (req, res) => {
+  try {
+    const { months = 12, location } = req.query;
+    
+    let whereClause = '';
+    let params = [];
+    
+    // Filter based on user role
+    if (req.user.role === 'manager') {
+      whereClause = 'WHERE location = ?';
+      params = [req.user.location];
+    } else if (req.user.role === 'volunteer') {
+      whereClause = 'WHERE addedBy = ?';
+      params = [req.user.username];
+    } else if (req.user.role === 'admin' && location && location !== 'all') {
+      whereClause = 'WHERE location = ?';
+      params = [location];
+    }
+    
+    // Get transactions from the database
+    const transactions = await getTransactions(whereClause, params);
+    
+    // Group transactions by month
+    const monthlyData = {};
+    const currentDate = new Date();
+    
+    // Initialize the last N months
+    for (let i = parseInt(months) - 1; i >= 0; i--) {
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth() - i, 1);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const monthLabel = date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+      
+      monthlyData[monthKey] = {
+        month: monthLabel,
+        date: monthKey,
+        income: 0,
+        expenses: 0,
+        net: 0,
+        transactionCount: 0
+      };
+    }
+    
+    // Process transactions
+    transactions.forEach(transaction => {
+      const transactionDate = new Date(transaction.date);
+      const monthKey = `${transactionDate.getFullYear()}-${String(transactionDate.getMonth() + 1).padStart(2, '0')}`;
+      
+      if (monthlyData[monthKey]) {
+        const amountUSD = convertToUSD(transaction.amount, transaction.currency);
+        
+        if (transaction.amount > 0) {
+          monthlyData[monthKey].income += amountUSD;
+        } else {
+          monthlyData[monthKey].expenses += Math.abs(amountUSD);
+        }
+        
+        monthlyData[monthKey].transactionCount++;
+      }
+    });
+    
+    // Calculate net for each month
+    Object.keys(monthlyData).forEach(key => {
+      monthlyData[key].net = monthlyData[key].income - monthlyData[key].expenses;
+    });
+    
+    // Convert to array and sort by date
+    const result = Object.values(monthlyData).sort((a, b) => a.date.localeCompare(b.date));
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Monthly data error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Clear all transactions (admin only)
-app.delete('/api/clear-transactions', authenticateToken, (req, res) => {
+app.delete('/api/clear-transactions', authenticateToken, async (req, res) => {
   // Only admins can clear all transactions
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
   try {
-    // Clear all transactions
-    transactions = [];
-    nextId = 1;
+    // Clear all transactions from database
+    await new Promise((resolve, reject) => {
+      db.run("DELETE FROM transactions", (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
     
     res.json({
       success: true,
@@ -593,7 +851,7 @@ app.delete('/api/clear-transactions', authenticateToken, (req, res) => {
 
 // Health check
 app.get('/api/hello', (req, res) => {
-  res.json({ message: 'Co404 Finance API with Excel Upload is running!' });
+  res.json({ message: 'Co404 Finance API with Excel Upload and Database is running!' });
 });
 
 // Start server
