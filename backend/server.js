@@ -1146,7 +1146,7 @@ app.get('/api/hello', (req, res) => {
 });
 
 // 🔧 TEMPORARY: Add new volunteers to existing database
-app.post('/api/add-volunteers', authenticateToken, (req, res) => {
+app.get('/api/add-volunteers', authenticateToken, (req, res) => {
   // Only admins can add volunteers
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Admin access required' });
