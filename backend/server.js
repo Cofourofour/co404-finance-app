@@ -146,8 +146,8 @@ function initializeDatabase() {
         transactions: [],
         shifts: [],
         nextUserId: 6,
-        nextTransactionId: 1
-        nextShiftId: 1 
+        nextTransactionId: 1,
+        nextShiftId: 1
       };
       fs.writeFileSync(dbPath, JSON.stringify(initialData, null, 2));
       console.log('✅ JSON database initialized with users');
