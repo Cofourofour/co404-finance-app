@@ -503,6 +503,13 @@ function insertTransaction(transaction) {
 // Shift helper functions
 function insertShift(shift) {
   const data = readDatabase();
+  
+  // 🛡️ Safety check: ensure shifts array exists
+  if (!data.shifts) {
+    data.shifts = [];
+    data.nextShiftId = 1;
+  }
+  
   const newShift = {
     id: data.nextShiftId++,
     ...shift,
@@ -526,6 +533,14 @@ function updateShift(shiftId, updates) {
 
 function getActiveShift(username, location) {
   const data = readDatabase();
+  
+  // 🛡️ Safety check: ensure shifts array exists
+  if (!data.shifts) {
+    data.shifts = [];
+    data.nextShiftId = 1;
+    writeDatabase(data);
+  }
+  
   return data.shifts.find(s => 
     s.username === username && 
     s.location === location && 
