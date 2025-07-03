@@ -498,9 +498,9 @@ const handleCountAgain = () => {
                 • leo / password (Medellín)<br/>
                 • ivonne / password (Oaxaca City)<br/>
                 <strong>Volunteers:</strong><br/>
-                • volunteer_sc / password (San Cristóbal)<br/>
-                • volunteer_oax / password (Oaxaca City)<br/>
-                • volunteer_med / password (Medellín)
+                • volsc / password (San Cristóbal)<br/>
+                • voloax / password (Oaxaca City)<br/>
+                • volmed / password (Medellín)
               </small>
             </div>
           </div>
