@@ -959,7 +959,25 @@ app.post('/api/shifts/end', authenticateToken, (req, res) => {
       variance,
       transactions: shiftTransactions.map(t => t.id)
     });
-    
+    function updateShift(shiftId, updates) {
+  const data = readDatabase();
+  
+  // 🛡️ Safety check: ensure shifts array exists
+  if (!data.shifts) {
+    data.shifts = [];
+    data.nextShiftId = 1;
+    writeDatabase(data);
+    return null;
+  }
+  
+  const shiftIndex = data.shifts.findIndex(s => s.id === shiftId);
+  if (shiftIndex !== -1) {
+    data.shifts[shiftIndex] = { ...data.shifts[shiftIndex], ...updates };
+    writeDatabase(data);
+    return data.shifts[shiftIndex];
+  }
+  return null;
+}
     res.json({
       shift: updatedShift,
       summary: {
