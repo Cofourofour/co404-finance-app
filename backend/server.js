@@ -55,15 +55,31 @@ function initializeDatabase() {
           },
           {
             id: 5,
-            username: 'volunteer1',
+            username: 'volunteer_sc',
             password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
             role: 'volunteer',
-            name: 'Alex (Volunteer)',
+            name: 'San Cristóbal Volunteer',
+            location: 'San Cristóbal'
+          },
+          {
+            id: 6,
+            username: 'volunteer_oax',
+            password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+            role: 'volunteer',
+            name: 'Oaxaca City Volunteer',
             location: 'Oaxaca City'
+          },
+          {
+            id: 7,
+            username: 'volunteer_med',
+            password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+            role: 'volunteer',
+            name: 'Medellín Volunteer',
+            location: 'Medellín'
           }
         ],
         transactions: [],
-        nextUserId: 6,
+        nextUserId: 8,
         nextTransactionId: 1
       };
       fs.writeFileSync(dbPath, JSON.stringify(initialData, null, 2));
@@ -750,7 +766,7 @@ app.post('/api/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const validPassword = password === 'admin123' || password === 'manager123' || password === 'volunteer123';
+    const validPassword = password === 'password' || password === 'password' || password === 'password';
     if (!validPassword) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -924,7 +940,7 @@ app.get('/api/shifts/active', authenticateToken, (req, res) => {
 // End shift with cash count
 app.post('/api/shifts/end', authenticateToken, (req, res) => {
   try {
-    const { cashCount } = req.body; // cashCount = { 1: 5, 2: 10, 5: 2, etc }
+    const { cashCount, acceptVariance = false } = req.body; // Add acceptVariance flag
     
     const activeShift = getActiveShift(req.user.username, req.user.location);
     if (!activeShift) {
@@ -947,7 +963,24 @@ app.post('/api/shifts/end', authenticateToken, (req, res) => {
     const expectedTotal = activeShift.startingCash + transactionTotal;
     const variance = actualTotal - expectedTotal;
     
-    // Update shift
+    // 🔥 ENHANCED VARIANCE LOGIC
+    // If there's a variance and user hasn't accepted it, return variance info
+    if (variance !== 0 && !acceptVariance) {
+      return res.json({
+        varianceDetected: true,
+        variance,
+        actualTotal,
+        expectedTotal,
+        startingCash: activeShift.startingCash,
+        transactionTotal,
+        transactionCount: shiftTransactions.length,
+        message: variance > 0 
+          ? `You have ${variance} pesos too much! Please recount or accept the variance.`
+          : `You're missing ${Math.abs(variance)} pesos! Please recount or accept the variance.`
+      });
+    }
+    
+    // Complete the shift (either no variance or variance accepted)
     const updatedShift = updateShift(activeShift.id, {
       status: 'completed',
       endTime: new Date().toISOString(),
@@ -957,9 +990,35 @@ app.post('/api/shifts/end', authenticateToken, (req, res) => {
       },
       expectedTotal,
       variance,
+      varianceAccepted: variance !== 0 ? acceptVariance : false,
       transactions: shiftTransactions.map(t => t.id)
     });
-    function updateShift(shiftId, updates) {
+    
+    res.json({
+      success: true,
+      shift: updatedShift,
+      summary: {
+        startingCash: activeShift.startingCash,
+        transactionTotal,
+        expectedTotal,
+        actualTotal,
+        variance,
+        varianceAccepted: variance !== 0 ? acceptVariance : false,
+        transactionCount: shiftTransactions.length,
+        message: variance === 0 
+          ? '✅ Perfect! Your cash count matches exactly!'
+          : variance > 0 
+            ? `💰 Shift completed with ${variance} pesos surplus ${acceptVariance ? '(variance accepted)' : ''}`
+            : `❌ Shift completed with ${Math.abs(variance)} pesos shortage ${acceptVariance ? '(variance accepted)' : ''}`
+      }
+    });
+  } catch (error) {
+    console.error('End shift error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+// 🎯 ADD MISSING updateShift FUNCTION
+function updateShift(shiftId, updates) {
   const data = readDatabase();
   
   // 🛡️ Safety check: ensure shifts array exists
@@ -978,54 +1037,6 @@ app.post('/api/shifts/end', authenticateToken, (req, res) => {
   }
   return null;
 }
-    res.json({
-      shift: updatedShift,
-      summary: {
-        startingCash: activeShift.startingCash,
-        transactionTotal,
-        expectedTotal,
-        actualTotal,
-        variance,
-        transactionCount: shiftTransactions.length
-      }
-    });
-  } catch (error) {
-    console.error('End shift error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-// Get location summary (for admin dashboard)
-app.get('/api/location-summary', authenticateToken, async (req, res) => {
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-
-  try {
-    const locationSummary = [];
-    
-    for (const location of ['San Cristóbal', 'Oaxaca City', 'Medellín']) {
-      const transactions = getTransactions('WHERE location = ?', [location]);
-      const income = transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + convertToUSD(t.amount, t.currency), 0);
-      const expenses = Math.abs(transactions.filter(t => t.amount < 0).reduce((sum, t) => sum + convertToUSD(t.amount, t.currency), 0));
-      
-      locationSummary.push({
-        name: location,
-        currency: LOCATION_CURRENCY[location],
-        income,
-        expenses,
-        net: income - expenses,
-        transactionCount: transactions.length
-      });
-    }
-
-    res.json(locationSummary);
-  } catch (error) {
-    console.error('Location summary error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
 // NEW: Get monthly financial data for graphs
 app.get('/api/monthly-data', authenticateToken, async (req, res) => {
   try {
