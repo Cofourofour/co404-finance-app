@@ -798,7 +798,7 @@ const handleCountAgain = () => {
 
         {/* MODALS */}
         {/* MODALS */}
-        {/* 🔥 NEW VARIANCE DETECTION MODAL */}
+{/* 🔥 NEW VARIANCE DETECTION MODAL */}
         {showVarianceModal && varianceInfo && (
           <div style={{
             position: 'fixed', 
@@ -856,7 +856,83 @@ const handleCountAgain = () => {
                     ${varianceInfo.transactionTotal.toLocaleString()}
                   </strong>
                 </div>
-                <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem'}}></div>
+                <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem'}}>
+                  <span>Expected Total:</span>
+                  <strong>${varianceInfo.expectedTotal.toLocaleString()}</strong>
+                </div>
+                <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '1rem'}}>
+                  <span>Your Count:</span>
+                  <strong>${varianceInfo.actualTotal.toLocaleString()}</strong>
+                </div>
+                <hr style={{margin: '1rem 0'}} />
+                <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '1.2rem'}}>
+                  <span>Variance:</span>
+                  <strong style={{
+                    color: varianceInfo.variance > 0 ? '#D68910' : '#B03A2E',
+                    fontSize: '1.3rem'
+                  }}>
+                    {varianceInfo.variance > 0 ? '+' : ''}${varianceInfo.variance.toLocaleString()}
+                  </strong>
+                </div>
+              </div>
+
+              <p style={{
+                color: '#666',
+                marginBottom: '2rem',
+                fontSize: '1.1rem',
+                lineHeight: '1.5'
+              }}>
+                {varianceInfo.message}
+              </p>
+              
+              <div style={{display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap'}}>
+                <button 
+                  onClick={handleCountAgain}
+                  style={{
+                    padding: '1rem 2rem',
+                    background: '#3498DB',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '12px',
+                    cursor: 'pointer',
+                    fontWeight: '600',
+                    fontSize: '1rem',
+                    minWidth: '150px'
+                  }}
+                >
+                  🔄 Count Again
+                </button>
+                <button 
+                  onClick={handleAcceptVariance}
+                  style={{
+                    padding: '1rem 2rem',
+                    background: varianceInfo.variance > 0 ? '#D68910' : '#B03A2E',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '12px',
+                    cursor: 'pointer',
+                    fontWeight: '600',
+                    fontSize: '1rem',
+                    minWidth: '150px'
+                  }}
+                >
+                  ✅ Accept Variance
+                </button>
+              </div>
+              
+              <div style={{
+                marginTop: '1.5rem',
+                padding: '1rem',
+                background: '#FFF3CD',
+                borderRadius: '8px',
+                fontSize: '0.9rem',
+                color: '#856404'
+              }}>
+                💡 <strong>Tip:</strong> If you choose "Count Again", you can recount your cash. If you're confident in your count, choose "Accept Variance" to complete the shift.
+              </div>
+            </div>
+          </div>
+        )}
         {/* Start Shift Modal */}
         {showStartShift && (
           <div style={{
