@@ -1135,9 +1135,74 @@ try {
     res.status(500).json({ error: 'Failed to clear transactions' });
   }
 });
+
 // Health check
 app.get('/api/hello', (req, res) => {
   res.json({ message: 'Co404 Finance API with Excel Upload and Database is running!' });
+});
+// Health check
+app.get('/api/hello', (req, res) => {
+  res.json({ message: 'Co404 Finance API with Excel Upload and Database is running!' });
+});
+
+// 🔧 TEMPORARY: Add new volunteers to existing database
+app.post('/api/add-volunteers', authenticateToken, (req, res) => {
+  // Only admins can add volunteers
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  try {
+    const data = readDatabase();
+    
+    const newVolunteers = [
+      {
+        id: 5,
+        username: 'volsc',
+        password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+        role: 'volunteer',
+        name: 'San Cristóbal Volunteer',
+        location: 'San Cristóbal'
+      },
+      {
+        id: 6,
+        username: 'voloax',
+        password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+        role: 'volunteer',
+        name: 'Oaxaca City Volunteer',
+        location: 'Oaxaca City'
+      },
+      {
+        id: 7,
+        username: 'volmed',
+        password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+        role: 'volunteer',
+        name: 'Medellín Volunteer',
+        location: 'Medellín'
+      }
+    ];
+
+    // Add new volunteers if they don't exist
+    newVolunteers.forEach(newVol => {
+      if (!data.users.find(u => u.username === newVol.username)) {
+        data.users.push(newVol);
+      }
+    });
+
+    // Update nextUserId
+    data.nextUserId = Math.max(data.nextUserId || 1, 8);
+
+    writeDatabase(data);
+    
+    res.json({ 
+      success: true, 
+      message: 'New volunteers added successfully',
+      users: data.users.map(u => ({ username: u.username, role: u.role, location: u.location }))
+    });
+  } catch (error) {
+    console.error('Add volunteers error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // Start server
