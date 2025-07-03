@@ -81,7 +81,7 @@ function initializeDatabase() {
         transactions: [],
         shifts: [],
         nextUserId: 8,
-        nextTransactionId: 1
+        nextTransactionId: 1,
         nextShiftId: 1
       };
       fs.writeFileSync(dbPath, JSON.stringify(initialData, null, 2));
