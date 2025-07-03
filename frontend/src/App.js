@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import './App.css';
 
-// 🎯 PRODUCTION BACKEND URL - FIXED!
 const API_BASE_URL = 'https://co404-finance-app.onrender.com';
 
 function App() {
@@ -13,12 +12,26 @@ function App() {
   const [transactions, setTransactions] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState('all');
   const [locationSummary, setLocationSummary] = useState([]);
-  const [monthlyData, setMonthlyData] = useState([]);
   const [businessData, setBusinessData] = useState({
     expenseCategories: [],
     incomeCategories: [],
     paymentMethods: []
   });
+
+  // Shift Management State
+  const [activeShift, setActiveShift] = useState(null);
+  const [showStartShift, setShowStartShift] = useState(false);
+  const [showEndShift, setShowEndShift] = useState(false);
+  const [shiftLoading, setShiftLoading] = useState(false);
+  const [shiftForm, setShiftForm] = useState({
+    startingCash: '',
+    shiftType: 'morning',
+    location: 'Oaxaca City'
+  });
+  const [cashCount, setCashCount] = useState({
+    1: 0, 2: 0, 5: 0, 10: 0, 20: 0, 50: 0, 100: 0, 200: 0, 500: 0, 1000: 0
+  });
+
   const [newTransaction, setNewTransaction] = useState({
     description: '',
     amount: '',
@@ -27,25 +40,13 @@ function App() {
     category: '',
     paymentMethod: ''
   });
-  
+
   // Excel upload state
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadLocation, setUploadLocation] = useState('Oaxaca City');
   const [uploadLoading, setUploadLoading] = useState(false);
   const [uploadResults, setUploadResults] = useState(null);
   const [showUploadResults, setShowUploadResults] = useState(false);
-  // Shift management state
-  const [activeShift, setActiveShift] = useState(null);
-  const [shiftLoading, setShiftLoading] = useState(false);
-  const [showStartShift, setShowStartShift] = useState(false);
-  const [showEndShift, setShowEndShift] = useState(false);
-  const [startingCash, setStartingCash] = useState('');
-  const [shiftType, setShiftType] = useState('morning');
-  const [cashCount, setCashCount] = useState({
-    1: 0, 2: 0, 5: 0, 10: 0, 20: 0, 50: 0, 
-    100: 0, 200: 0, 500: 0, 1000: 0
-  });
-  const [shiftSummary, setShiftSummary] = useState(null);
 
   // Check if user is logged in when app loads
   useEffect(() => {
@@ -62,39 +63,20 @@ function App() {
     if (user) {
       fetchTransactions();
       fetchBusinessData();
-      fetchMonthlyData();
       if (user.role === 'admin') {
         fetchLocationSummary();
       }
     }
   }, [selectedLocation, user]);
 
-// Fetch active shift when user loads
+  // Fetch active shift when user logs in
   useEffect(() => {
-    if (user && (user.role === 'volunteer' || user.role === 'manager')) {
+    if (user) {
       fetchActiveShift();
     }
   }, [user]);
 
-  // Fetch active shift
-  const fetchActiveShift = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/shifts/active`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('co404_token')}`
-        }
-      });
-      
-      if (response.ok) {
-        const shift = await response.json();
-        setActiveShift(shift);
-      }
-    } catch (error) {
-      console.error('Error fetching active shift:', error);
-    }
-  };
-
-  // Start shift
+  // Shift Management Functions
   const handleStartShift = async (e) => {
     e.preventDefault();
     setShiftLoading(true);
@@ -107,8 +89,9 @@ function App() {
           'Authorization': `Bearer ${localStorage.getItem('co404_token')}`
         },
         body: JSON.stringify({
-          startingCash: Number(startingCash),
-          shiftType
+          startingCash: Number(shiftForm.startingCash),
+          shiftType: shiftForm.shiftType,
+          location: user.role === 'admin' ? shiftForm.location : user.location
         })
       });
       
@@ -116,7 +99,11 @@ function App() {
         const shift = await response.json();
         setActiveShift(shift);
         setShowStartShift(false);
-        setStartingCash('');
+        setShiftForm({ 
+          startingCash: '', 
+          shiftType: 'morning', 
+          location: user.location === 'all' ? 'Oaxaca City' : user.location || 'Oaxaca City' 
+        });
         alert('✅ Shift started successfully!');
       } else {
         const error = await response.json();
@@ -129,20 +116,74 @@ function App() {
       setShiftLoading(false);
     }
   };
-// Calculate total from cash count
+
+  const handleEndShift = async () => {
+    setShiftLoading(true);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/shifts/end`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('co404_token')}`
+        },
+        body: JSON.stringify({ cashCount })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setActiveShift(null);
+        setShowEndShift(false);
+        setCashCount({ 1: 0, 2: 0, 5: 0, 10: 0, 20: 0, 50: 0, 100: 0, 200: 0, 500: 0, 1000: 0 });
+        
+        // Show variance message
+        const variance = result.summary.variance;
+        if (variance > 0) {
+          alert(`💰 You have ${variance} pesos too much! Please check your count.`);
+        } else if (variance < 0) {
+          alert(`❌ You're missing ${Math.abs(variance)} pesos! Please recount.`);
+        } else {
+          alert(`✅ Perfect! Your cash count matches exactly!`);
+        }
+        
+        // Refresh transactions
+        fetchTransactions();
+      } else {
+        const error = await response.json();
+        alert(`❌ ${error.error}`);
+      }
+    } catch (error) {
+      console.error('End shift error:', error);
+      alert('❌ Connection error');
+    } finally {
+      setShiftLoading(false);
+    }
+  };
+
   const calculateCashTotal = () => {
     const denominations = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
-    return denominations.reduce((total, denom) => {
-      return total + (denom * (cashCount[denom] || 0));
-    }, 0);
+    return denominations.reduce((total, denom) => total + (denom * (cashCount[denom] || 0)), 0);
   };
+
+  const fetchActiveShift = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/shifts/active`, {
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('co404_token')}` }
+      });
+      if (response.ok) {
+        const shift = await response.json();
+        setActiveShift(shift);
+      }
+    } catch (error) {
+      console.error('Fetch active shift error:', error);
+    }
+  };
+
   // Fetch user info
   const fetchUserInfo = async (token) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/me`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       
       if (response.ok) {
@@ -160,20 +201,16 @@ function App() {
     }
   };
 
-  // Fetch business data (categories, payment methods)
+  // Fetch business data
   const fetchBusinessData = async (token = localStorage.getItem('co404_token')) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/business-data`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       
       if (response.ok) {
         const data = await response.json();
         setBusinessData(data);
-        
-        // Set default category and payment method
         setNewTransaction(prev => ({
           ...prev,
           category: data.expenseCategories[0] || '',
@@ -185,14 +222,12 @@ function App() {
     }
   };
 
-  // Fetch transactions with location filter
+  // Fetch transactions
   const fetchTransactions = async (token = localStorage.getItem('co404_token')) => {
     try {
       const locationParam = user?.role === 'admin' ? `?location=${selectedLocation}` : '';
       const response = await fetch(`${API_BASE_URL}/api/transactions${locationParam}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       
       if (response.ok) {
@@ -202,39 +237,17 @@ function App() {
         localStorage.removeItem('co404_token');
         setUser(null);
         setLoading(false);
-        return;
       }
     } catch (error) {
       console.error('Error fetching transactions:', error);
     }
   };
 
-  // Fetch monthly data for charts
-  const fetchMonthlyData = async (token = localStorage.getItem('co404_token')) => {
-    try {
-      const locationParam = user?.role === 'admin' ? `?location=${selectedLocation}` : '';
-      const response = await fetch(`${API_BASE_URL}/api/monthly-data${locationParam}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setMonthlyData(data);
-      }
-    } catch (error) {
-      console.error('Error fetching monthly data:', error);
-    }
-  };
-
-  // Fetch location summary for admin
+  // Fetch location summary
   const fetchLocationSummary = async (token = localStorage.getItem('co404_token')) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/location-summary`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
       
       if (response.ok) {
@@ -252,13 +265,9 @@ function App() {
     setLoginError('');
     
     try {
-      console.log('🔐 Attempting login to:', `${API_BASE_URL}/api/login`);
-      
       const response = await fetch(`${API_BASE_URL}/api/login`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(loginForm),
       });
       
@@ -266,15 +275,13 @@ function App() {
         const data = await response.json();
         localStorage.setItem('co404_token', data.token);
         setUser(data.user);
-        console.log('✅ Login successful!');
       } else {
         const error = await response.json();
         setLoginError(error.error || 'Login failed');
-        console.error('❌ Login failed:', error);
       }
     } catch (error) {
-      console.error('❌ Login error:', error);
-      setLoginError('Connection error - Cannot connect to backend server');
+      console.error('Login error:', error);
+      setLoginError('Connection error');
     }
   };
 
@@ -284,13 +291,11 @@ function App() {
     setUser(null);
     setTransactions([]);
     setLocationSummary([]);
-    setMonthlyData([]);
     setSelectedLocation('all');
-    setUploadResults(null);
-    setShowUploadResults(false);
+    setActiveShift(null);
   };
 
-  // Handle location filter change
+  // Handle location change
   const handleLocationChange = (location) => {
     setSelectedLocation(location);
   };
@@ -298,11 +303,7 @@ function App() {
   // Handle transaction type change
   const handleTypeChange = (type) => {
     const categories = type === 'income' ? businessData.incomeCategories : businessData.expenseCategories;
-    setNewTransaction(prev => ({
-      ...prev,
-      type,
-      category: categories[0] || ''
-    }));
+    setNewTransaction(prev => ({ ...prev, type, category: categories[0] || '' }));
   };
 
   // Add transaction
@@ -328,7 +329,6 @@ function App() {
         
         if (response.ok) {
           fetchTransactions();
-          fetchMonthlyData();
           if (user.role === 'admin') {
             fetchLocationSummary();
           }
@@ -363,13 +363,9 @@ function App() {
       formData.append('excelFile', uploadFile);
       formData.append('location', uploadLocation);
 
-      console.log('📤 Uploading Excel file to:', uploadLocation);
-
       const response = await fetch(`${API_BASE_URL}/api/upload-excel`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('co404_token')}`
-        },
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('co404_token')}` },
         body: formData
       });
 
@@ -379,92 +375,22 @@ function App() {
         setUploadResults(result);
         setShowUploadResults(true);
         setUploadFile(null);
-        
-        // Refresh data
         fetchTransactions();
-        fetchMonthlyData();
         if (user.role === 'admin') {
           fetchLocationSummary();
         }
-        
-        console.log('✅ Excel upload successful!');
       } else {
         alert(`Upload failed: ${result.error}`);
-        console.error('❌ Upload failed:', result);
       }
     } catch (error) {
-      console.error('❌ Upload error:', error);
+      console.error('Upload error:', error);
       alert('Upload failed: Connection error');
     } finally {
       setUploadLoading(false);
     }
   };
-  // End shift
-  const handleEndShift = async () => {
-    setShiftLoading(true);
-    
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/shifts/end`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('co404_token')}`
-        },
-        body: JSON.stringify({ cashCount })
-      });
-      
-      if (response.ok) {
-        const result = await response.json();
-        setShiftSummary(result.summary);
-        setActiveShift(null);
-        setShowEndShift(false);
-        setCashCount({
-          1: 0, 2: 0, 5: 0, 10: 0, 20: 0, 50: 0, 
-          100: 0, 200: 0, 500: 0, 1000: 0
-        });
-        fetchTransactions(); // Refresh transactions
-      } else {
-        const error = await response.json();
-        alert(`❌ ${error.error}`);
-      }
-    } catch (error) {
-      console.error('End shift error:', error);
-      alert('❌ Connection error');
-    } finally {
-      setShiftLoading(false);
-    }
-  };
 
-  // Clear all transactions (admin only)
-  const handleClearAllTransactions = async () => {
-    if (!window.confirm('⚠️ Are you sure you want to clear ALL transactions? This cannot be undone!')) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/clear-transactions`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('co404_token')}`
-        }
-      });
-
-      if (response.ok) {
-        alert('✅ All transactions cleared successfully!');
-        fetchTransactions();
-        fetchMonthlyData();
-        fetchLocationSummary();
-      } else {
-        const error = await response.json();
-        alert(`❌ Failed to clear transactions: ${error.error}`);
-      }
-    } catch (error) {
-      console.error('Clear transactions error:', error);
-      alert('❌ Connection error');
-    }
-  };
-
-  // Analytics calculations (using USD for "all" view)
+  // Analytics calculations
   const totalIncome = selectedLocation === 'all' 
     ? transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amountUSD, 0)
     : transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + t.amount, 0);
@@ -475,7 +401,7 @@ function App() {
     
   const totalBalance = totalIncome - totalExpenses;
 
-  // Currency symbol for display
+  // Currency symbol
   const getCurrencySymbol = () => {
     if (selectedLocation === 'all') return '$USD';
     const locationCurrency = {
@@ -486,31 +412,7 @@ function App() {
     return locationCurrency[selectedLocation] || '$';
   };
 
-  // Income vs Expenses pie chart data
-  const pieData = [
-    { name: 'Income', value: totalIncome, color: '#C58C72' },
-    { name: 'Expenses', value: totalExpenses, color: '#B37775' }
-  ];
-
-  // Category breakdown for pie chart
-  const getCategoryData = () => {
-    const categoryTotals = {};
-    transactions.forEach(t => {
-      const amount = selectedLocation === 'all' ? Math.abs(t.amountUSD) : Math.abs(t.amount);
-      if (categoryTotals[t.category]) {
-        categoryTotals[t.category] += amount;
-      } else {
-        categoryTotals[t.category] = amount;
-      }
-    });
-
-    return Object.entries(categoryTotals)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 8); // Top 8 categories
-  };
-
-  // Get available categories based on transaction type
+  // Get available categories
   const getAvailableCategories = () => {
     return newTransaction.type === 'income' ? businessData.incomeCategories : businessData.expenseCategories;
   };
@@ -521,10 +423,7 @@ function App() {
       <div className="App">
         <header className="App-header">
           <h1>Co404 Finance Dashboard</h1>
-          <div className="loading-container">
-            <div className="loading-shimmer" style={{height: '20px', borderRadius: '4px', marginBottom: '1rem'}}></div>
-            <p>Loading your financial data...</p>
-          </div>
+          <p>Loading...</p>
         </header>
       </div>
     );
@@ -553,8 +452,8 @@ function App() {
                 onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
                 required
               />
-              <button type="submit" className="submit-btn">Login</button>
-              {loginError && <p className="error" style={{color: 'red', marginTop: '1rem'}}>{loginError}</p>}
+              <button type="submit">Login</button>
+              {loginError && <p className="error">{loginError}</p>}
             </form>
             <div className="demo-credentials">
               <small>
@@ -563,9 +462,6 @@ function App() {
                 Manager: santi / manager123<br/>
                 Volunteer: volunteer1 / volunteer123
               </small>
-            </div>
-            <div style={{marginTop: '1rem', fontSize: '0.8rem', color: '#666'}}>
-              Backend: {API_BASE_URL}
             </div>
           </div>
         </header>
@@ -577,13 +473,13 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <div className="header-top" style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem'}}>
+        <div className="header-top">
           <h1>Co404 Finance Dashboard</h1>
-          <div className="user-info" style={{display: 'flex', gap: '1rem', alignItems: 'center'}}>
+          <div className="user-info">
             <span>Welcome, {user.name}!</span>
-            <span className={`role-badge ${user.role}`} style={{padding: '0.25rem 0.75rem', borderRadius: '20px', color: 'white', fontSize: '0.8rem'}}>{user.role}</span>
-            <span className="location-badge" style={{padding: '0.25rem 0.75rem', background: '#EDE8E6', borderRadius: '20px', fontSize: '0.8rem'}}>{user.location}</span>
-            <button onClick={handleLogout} className="logout-btn" style={{padding: '0.5rem 1rem', background: '#B37775', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer'}}>Logout</button>
+            <span className="role-badge">{user.role}</span>
+            <span className="location-badge">{user.location}</span>
+            <button onClick={handleLogout} className="logout-btn">Logout</button>
           </div>
         </div>
 
@@ -619,8 +515,71 @@ function App() {
             </div>
           </div>
         )}
-        
-        {/* Stats Overview */}
+
+        {/* 1. SHIFT MANAGEMENT SECTION */}
+        <div className="add-transaction">
+          <h3>🏨 Shift Management</h3>
+          
+          {activeShift ? (
+            <div style={{
+              background: 'linear-gradient(135deg, #C58C72, #B37775)',
+              color: 'white',
+              padding: '1.5rem',
+              borderRadius: '12px',
+              marginBottom: '1rem'
+            }}>
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                <div>
+                  <h4 style={{margin: 0, fontSize: '1.2rem'}}>✅ Shift Active</h4>
+                  <p style={{margin: '0.5rem 0 0 0', opacity: 0.9}}>
+                    {activeShift.shiftType} shift • Started with ${activeShift.startingCash} • {activeShift.location}
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setShowEndShift(true)}
+                  style={{
+                    padding: '0.75rem 1.5rem',
+                    background: 'rgba(255,255,255,0.2)',
+                    color: 'white',
+                    border: '1px solid rgba(255,255,255,0.3)',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    fontWeight: '600'
+                  }}
+                >
+                  🏁 End Shift & Count Cash
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{
+              background: '#F8F9FA',
+              padding: '1.5rem',
+              borderRadius: '12px',
+              textAlign: 'center',
+              marginBottom: '1rem'
+            }}>
+              <p style={{margin: '0 0 1rem 0', color: '#666'}}>No active shift</p>
+              <button 
+                onClick={() => setShowStartShift(true)}
+                style={{
+                  padding: '1rem 2rem',
+                  background: '#C58C72',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '1rem'
+                }}
+              >
+                🚀 Start Shift
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* 2. STATS OVERVIEW */}
         <div className="stats-grid">
           <div className="stat-card">
             <div className="stat-value income">{getCurrencySymbol()}{totalIncome.toLocaleString()}</div>
@@ -639,42 +598,130 @@ function App() {
             <div>Total Transactions</div>
           </div>
         </div>
-        {/* Shift Management - Volunteers and Managers Only */}
-        {(user.role === 'volunteer' || user.role === 'manager' || user.role === 'admin') && (
-          <div className="add-transaction">
-            <h3>🔄 Shift Management</h3>
-            {!activeShift ? (
-              <div>
-                <p>No active shift. Start your shift to begin tracking cash and transactions.</p>
-                <button 
-                  onClick={() => setShowStartShift(true)}
-                  className="submit-btn"
-                >
-                  🚀 Start Shift
-                </button>
-              </div>
-            ) : (
-              <div>
-                <div style={{background: '#d4edda', padding: '1rem', borderRadius: '8px', marginBottom: '1rem'}}>
-                  <strong>✅ Active Shift ({activeShift.shiftType})</strong>
-                  <br />
-                  Started: {new Date(activeShift.startTime).toLocaleString()}
-                  <br />
-                  Starting Cash: ${activeShift.startingCash.toLocaleString()} MXN
-                </div>
-                <button 
-                  onClick={() => setShowEndShift(true)}
-                  className="submit-btn"
-                  style={{background: '#dc3545'}}
-                >
-                  🏁 End Shift & Count Cash
-                </button>
-              </div>
-            )}
-          </div>
-        )}
 
-        {/* Excel Upload Section - Admin Only */}
+        {/* 3. ADD NEW TRANSACTION */}
+        <div className="add-transaction">
+          <h3>💰 Add New Transaction {activeShift ? '(Linked to Active Shift)' : ''}</h3>
+          
+          {!activeShift && (
+            <div style={{
+              background: '#FFF3CD',
+              color: '#856404',
+              padding: '1rem',
+              borderRadius: '8px',
+              marginBottom: '1rem',
+              border: '1px solid #FFEAA7'
+            }}>
+              ⚠️ No active shift - transactions won't be linked to a shift
+            </div>
+          )}
+          
+          <form onSubmit={addTransaction} className="enhanced-form">
+            <div className="form-row">
+              <input
+                type="text"
+                placeholder="Description"
+                value={newTransaction.description}
+                onChange={(e) => setNewTransaction({...newTransaction, description: e.target.value})}
+                required
+              />
+              <input
+                type="number"
+                step="0.01"
+                placeholder="Amount"
+                value={newTransaction.amount}
+                onChange={(e) => setNewTransaction({...newTransaction, amount: e.target.value})}
+                required
+              />
+            </div>
+            
+            <div className="form-row">
+              <select
+                value={newTransaction.type}
+                onChange={(e) => handleTypeChange(e.target.value)}
+                required
+              >
+                <option value="expense">💸 Expense</option>
+                <option value="income">💰 Income</option>
+              </select>
+              
+              <select
+                value={newTransaction.category}
+                onChange={(e) => setNewTransaction({...newTransaction, category: e.target.value})}
+                required
+              >
+                <option value="">Select Category</option>
+                {getAvailableCategories().map(category => (
+                  <option key={category} value={category}>{category}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="form-row">
+              <select
+                value={newTransaction.paymentMethod}
+                onChange={(e) => setNewTransaction({...newTransaction, paymentMethod: e.target.value})}
+                required
+              >
+                <option value="">Payment Method</option>
+                {businessData.paymentMethods.map(method => (
+                  <option key={method} value={method}>{method}</option>
+                ))}
+              </select>
+              
+              {user.role === 'admin' && (
+                <select
+                  value={newTransaction.location}
+                  onChange={(e) => setNewTransaction({...newTransaction, location: e.target.value})}
+                  required
+                >
+                  <option value="Oaxaca City">Oaxaca City</option>
+                  <option value="San Cristóbal">San Cristóbal</option>
+                  <option value="Medellín">Medellín</option>
+                </select>
+              )}
+            </div>
+            
+            <button type="submit" className="submit-btn">✨ Add Transaction</button>
+          </form>
+        </div>
+
+        {/* 4. RECENT TRANSACTIONS */}
+        <div className="transactions">
+          <h3>📊 Recent Transactions{selectedLocation !== 'all' ? ` - ${selectedLocation}` : ''} ({transactions.length})</h3>
+          {transactions.length === 0 ? (
+            <div style={{textAlign: 'center', padding: '2rem', color: '#666'}}>
+              No transactions found. Add your first transaction above!
+            </div>
+          ) : (
+            transactions.slice(0, 20).map(transaction => (
+              <div key={transaction.id} className={`transaction ${transaction.type}`}>
+                <div className="transaction-main">
+                  <div className="transaction-info">
+                    <span className="transaction-description">{transaction.description}</span>
+                    <div className="transaction-details">
+                      <span className="category-badge">{transaction.category}</span>
+                      <span className="payment-badge">{transaction.paymentMethod}</span>
+                    </div>
+                    <small className="transaction-meta">
+                      {transaction.location} • Added by: {transaction.addedBy} • {new Date(transaction.date).toLocaleDateString()}
+                    </small>
+                  </div>
+                  <div className="transaction-amount">
+                    <span className="amount">{transaction.formattedAmount}</span>
+                    {selectedLocation === 'all' && (
+                      <small className="usd-amount">
+                        ${transaction.amountUSD.toFixed(2)} USD
+                      </small>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* 5. EXCEL UPLOAD SECTION - BOTTOM - Admin Only */}
         {user.role === 'admin' && (
           <div className="add-transaction">
             <h3>📤 Excel File Import</h3>
@@ -684,35 +731,23 @@ function App() {
                   type="file"
                   accept=".xlsx,.xls"
                   onChange={(e) => setUploadFile(e.target.files[0])}
-                  style={{padding: '1rem', border: '2px solid #EDE8E6', borderRadius: '8px', background: '#EDE8E6'}}
                 />
                 <select
                   value={uploadLocation}
                   onChange={(e) => setUploadLocation(e.target.value)}
-                  style={{padding: '1rem', border: '2px solid #EDE8E6', borderRadius: '8px', background: '#EDE8E6'}}
                 >
                   <option value="Oaxaca City">Oaxaca City</option>
                   <option value="San Cristóbal">San Cristóbal</option>
                   <option value="Medellín">Medellín</option>
                 </select>
               </div>
-              <div style={{display: 'flex', gap: '1rem'}}>
-                <button 
-                  type="submit" 
-                  className="submit-btn" 
-                  disabled={uploadLoading || !uploadFile}
-                  style={{opacity: uploadLoading || !uploadFile ? 0.6 : 1}}
-                >
-                  {uploadLoading ? '⏳ Uploading...' : '📤 Upload Excel File'}
-                </button>
-                <button 
-                  type="button" 
-                  onClick={handleClearAllTransactions}
-                  style={{padding: '1rem 2rem', background: '#dc3545', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer'}}
-                >
-                  🗑️ Clear All Data
-                </button>
-              </div>
+              <button 
+                type="submit" 
+                className="submit-btn" 
+                disabled={uploadLoading || !uploadFile}
+              >
+                {uploadLoading ? '⏳ Uploading...' : '📤 Upload Excel File'}
+              </button>
             </form>
             
             <div style={{fontSize: '0.9rem', color: '#666', marginTop: '1rem'}}>
@@ -721,39 +756,7 @@ function App() {
           </div>
         )}
 
-        {/* Upload Results */}
-        {showUploadResults && uploadResults && (
-          <div className="add-transaction">
-            <h3>📊 Upload Results</h3>
-            <div style={{background: uploadResults.success ? '#d4edda' : '#f8d7da', padding: '1rem', borderRadius: '8px', marginBottom: '1rem'}}>
-              <strong>{uploadResults.message}</strong>
-              <br />
-              ✅ Imported: {uploadResults.imported} transactions
-              <br />
-              ❌ Errors: {uploadResults.errors}
-              <br />
-              📋 Total rows processed: {uploadResults.totalRows}
-            </div>
-            
-            {uploadResults.errorDetails && uploadResults.errorDetails.length > 0 && (
-              <div style={{maxHeight: '200px', overflow: 'auto', background: '#f8f9fa', padding: '1rem', borderRadius: '8px'}}>
-                <strong>Error Details:</strong>
-                {uploadResults.errorDetails.map((error, index) => (
-                  <div key={index} style={{margin: '0.5rem 0', fontSize: '0.85rem', color: '#dc3545'}}>
-                    {error}
-                  </div>
-                ))}
-              </div>
-            )}
-            
-            <button 
-              onClick={() => setShowUploadResults(false)}
-              style={{marginTop: '1rem', padding: '0.5rem 1rem', background: '#6c757d', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer'}}
-            >
-              ✖️ Close
-            </button>
-          </div>
-        )}
+        {/* MODALS */}
         {/* Start Shift Modal */}
         {showStartShift && (
           <div style={{
@@ -773,14 +776,11 @@ function App() {
               background: 'white',
               borderRadius: '20px',
               padding: '2.5rem',
-              width: '90vw',
-              maxWidth: '600px',
-              maxHeight: '85vh',
-              overflow: 'auto',
+              width: '95vw',
+              maxWidth: '500px',
               boxShadow: '0 25px 50px rgba(0, 0, 0, 0.25)',
               position: 'relative'
             }}>
-              {/* Close button */}
               <button 
                 onClick={() => setShowStartShift(false)}
                 style={{
@@ -818,22 +818,55 @@ function App() {
                 marginBottom: '2rem',
                 fontSize: '1rem'
               }}>
-                Begin tracking your cash box and transactions
+                Begin your work session and track transactions
               </p>
-
-              <form onSubmit={handleStartShift}>
-                <div style={{marginBottom: '1.5rem'}}>
+              
+              <form onSubmit={handleStartShift} style={{display: 'flex', flexDirection: 'column', gap: '1.5rem'}}>
+                {/* Location Selector - Only for Admin */}
+                {user.role === 'admin' && (
+                  <div>
+                    <label style={{
+                      display: 'block',
+                      marginBottom: '0.5rem',
+                      fontWeight: '600',
+                      color: '#43362D'
+                    }}>
+                      📍 Location
+                    </label>
+                    <select
+                      value={shiftForm.location}
+                      onChange={(e) => setShiftForm({...shiftForm, location: e.target.value})}
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '1rem',
+                        border: '2px solid #EDE8E6',
+                        borderRadius: '12px',
+                        fontSize: '1rem',
+                        background: '#F8F9FA'
+                      }}
+                    >
+                      <option value="">Select Location</option>
+                      <option value="Oaxaca City">🏨 Oaxaca City</option>
+                      <option value="San Cristóbal">🏨 San Cristóbal</option>
+                      <option value="Medellín">🏨 Medellín</option>
+                    </select>
+                  </div>
+                )}
+                
+                {/* Shift Type */}
+                <div>
                   <label style={{
                     display: 'block',
                     marginBottom: '0.5rem',
                     fontWeight: '600',
                     color: '#43362D'
                   }}>
-                    Shift Type
+                    ⏰ Shift Type
                   </label>
                   <select
-                    value={shiftType}
-                    onChange={(e) => setShiftType(e.target.value)}
+                    value={shiftForm.shiftType}
+                    onChange={(e) => setShiftForm({...shiftForm, shiftType: e.target.value})}
                     required
                     style={{
                       width: '100%',
@@ -841,47 +874,45 @@ function App() {
                       border: '2px solid #EDE8E6',
                       borderRadius: '12px',
                       fontSize: '1rem',
-                      background: 'white',
-                      color: '#43362D',
-                      fontFamily: 'Roboto, sans-serif'
+                      background: '#F8F9FA'
                     }}
                   >
                     <option value="morning">🌅 Morning Shift</option>
-                    <option value="evening">🌆 Evening Shift</option>
+                    <option value="evening">🌙 Evening Shift</option>
                   </select>
                 </div>
-
-                <div style={{marginBottom: '2rem'}}>
+                
+                {/* Starting Cash */}
+                <div>
                   <label style={{
                     display: 'block',
                     marginBottom: '0.5rem',
                     fontWeight: '600',
                     color: '#43362D'
                   }}>
-                    Starting Cash Amount
+                    💰 Starting Cash Amount
                   </label>
                   <input
                     type="number"
-                    placeholder="Enter amount in pesos"
-                    value={startingCash}
-                    onChange={(e) => setStartingCash(e.target.value)}
+                    value={shiftForm.startingCash}
+                    onChange={(e) => setShiftForm({...shiftForm, startingCash: e.target.value})}
+                    placeholder="1000"
                     required
                     min="0"
-                    step="0.01"
                     style={{
                       width: '100%',
                       padding: '1rem',
                       border: '2px solid #EDE8E6',
                       borderRadius: '12px',
                       fontSize: '1rem',
-                      fontFamily: 'Roboto, sans-serif'
+                      background: '#F8F9FA'
                     }}
                   />
                 </div>
-
-                <div style={{display: 'flex', gap: '1rem', justifyContent: 'flex-end'}}>
+                
+                <div style={{display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '1rem'}}>
                   <button 
-                    type="button" 
+                    type="button"
                     onClick={() => setShowStartShift(false)}
                     style={{
                       padding: '1rem 2rem',
@@ -897,7 +928,7 @@ function App() {
                     Cancel
                   </button>
                   <button 
-                    type="submit" 
+                    type="submit"
                     disabled={shiftLoading}
                     style={{
                       padding: '1rem 2rem',
@@ -919,7 +950,7 @@ function App() {
           </div>
         )}
 
-{/* End Shift & Cash Count Modal */}
+        {/* End Shift & Cash Count Modal */}
         {showEndShift && (
           <div style={{
             position: 'fixed', 
@@ -945,7 +976,6 @@ function App() {
               boxShadow: '0 25px 50px rgba(0, 0, 0, 0.25)',
               position: 'relative'
             }}>
-              {/* Close button */}
               <button 
                 onClick={() => setShowEndShift(false)}
                 style={{
@@ -1093,204 +1123,57 @@ function App() {
           </div>
         )}
 
-        {/* Charts */}
-        <div className="analytics">
-          <h3>📈 Financial Analytics{selectedLocation !== 'all' ? ` - ${selectedLocation}` : ' - All Locations'}</h3>
-          <div className="charts-grid">
-            {/* Income vs Expenses Pie Chart */}
-            <div className="chart-container">
-              <h4>Income vs Expenses</h4>
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    dataKey="value"
-                  >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => `${getCurrencySymbol()}${value.toLocaleString()}`} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Monthly Trend Line Chart */}
-            <div className="chart-container">
-              <h4>Monthly Financial Trend</h4>
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={monthlyData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip formatter={(value) => `${getCurrencySymbol()}${value.toFixed(2)}`} />
-                  <Legend />
-                  <Line type="monotone" dataKey="income" stroke="#C58C72" strokeWidth={3} name="Income" />
-                  <Line type="monotone" dataKey="expenses" stroke="#B37775" strokeWidth={3} name="Expenses" />
-                  <Line type="monotone" dataKey="net" stroke="#43362D" strokeWidth={2} strokeDasharray="5 5" name="Net" />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Category Breakdown */}
-            <div className="chart-container">
-              <h4>Top Categories</h4>
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={getCategoryData()}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    dataKey="value"
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  >
-                    {getCategoryData().map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={`hsl(${index * 45}, 70%, 60%)`} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => `${getCurrencySymbol()}${value.toLocaleString()}`} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Location Performance Bar Chart - Admin viewing all locations only */}
-            {user.role === 'admin' && selectedLocation === 'all' && (
-              <div className="chart-container">
-                <h4>Performance by Location (USD)</h4>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={locationSummary}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip formatter={(value) => `$${value.toFixed(2)} USD`} />
-                    <Legend />
-                    <Bar dataKey="income" fill="#C58C72" name="Income" />
-                    <Bar dataKey="expenses" fill="#B37775" name="Expenses" />
-                    <Bar dataKey="net" fill="#43362D" name="Net" />
-                  </BarChart>
-                </ResponsiveContainer>
+        {/* Upload Results Modal */}
+        {showUploadResults && uploadResults && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+          }}>
+            <div style={{
+              background: 'white',
+              padding: '2rem',
+              borderRadius: '12px',
+              maxWidth: '600px',
+              maxHeight: '80vh',
+              overflow: 'auto'
+            }}>
+              <h3>📊 Upload Results</h3>
+              <div style={{
+                background: uploadResults.success ? '#d4edda' : '#f8d7da',
+                padding: '1rem',
+                borderRadius: '8px',
+                marginBottom: '1rem'
+              }}>
+                <strong>{uploadResults.message}</strong><br/>
+                ✅ Imported: {uploadResults.imported} transactions<br/>
+                ❌ Errors: {uploadResults.errors}<br/>
+                📋 Total rows: {uploadResults.totalRows}
               </div>
-            )}
+              
+              <button 
+                onClick={() => setShowUploadResults(false)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  background: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer'
+                }}
+              >
+                ✖️ Close
+              </button>
+            </div>
           </div>
-        </div>
-
-        {/* Enhanced Add Transaction Form */}
-        <div className="add-transaction">
-          <h3>💼 Add New Transaction</h3>
-          <form onSubmit={addTransaction} className="enhanced-form">
-            <div className="form-row">
-              <input
-                type="text"
-                placeholder="Description"
-                value={newTransaction.description}
-                onChange={(e) => setNewTransaction({...newTransaction, description: e.target.value})}
-                required
-              />
-              <input
-                type="number"
-                step="0.01"
-                placeholder="Amount"
-                value={newTransaction.amount}
-                onChange={(e) => setNewTransaction({...newTransaction, amount: e.target.value})}
-                required
-              />
-            </div>
-            
-            <div className="form-row">
-              <select
-                value={newTransaction.type}
-                onChange={(e) => handleTypeChange(e.target.value)}
-                required
-              >
-                <option value="expense">💸 Expense</option>
-                <option value="income">💰 Income</option>
-              </select>
-              
-              <select
-                value={newTransaction.category}
-                onChange={(e) => setNewTransaction({...newTransaction, category: e.target.value})}
-                required
-              >
-                <option value="">Select Category</option>
-                {getAvailableCategories().map(category => (
-                  <option key={category} value={category}>{category}</option>
-                ))}
-              </select>
-            </div>
-            
-            <div className="form-row">
-              <select
-                value={newTransaction.paymentMethod}
-                onChange={(e) => setNewTransaction({...newTransaction, paymentMethod: e.target.value})}
-                required
-              >
-                <option value="">Payment Method</option>
-                {businessData.paymentMethods.map(method => (
-                  <option key={method} value={method}>{method}</option>
-                ))}
-              </select>
-              
-              {user.role === 'admin' && (
-                <select
-                  value={newTransaction.location}
-                  onChange={(e) => setNewTransaction({...newTransaction, location: e.target.value})}
-                  required
-                >
-                  <option value="Oaxaca City">Oaxaca City</option>
-                  <option value="San Cristóbal">San Cristóbal</option>
-                  <option value="Medellín">Medellín</option>
-                </select>
-              )}
-            </div>
-            
-            <button type="submit" className="submit-btn">✨ Add Transaction</button>
-          </form>
-        </div>
-
-        {/* Enhanced Recent Transactions */}
-        <div className="transactions">
-          <h3>📊 Recent Transactions{selectedLocation !== 'all' ? ` - ${selectedLocation}` : ''} ({transactions.length})</h3>
-          {transactions.length === 0 ? (
-            <div style={{textAlign: 'center', padding: '2rem', color: '#666'}}>
-              No transactions found. {user.role === 'admin' ? 'Upload an Excel file or add transactions manually.' : 'Add your first transaction above!'}
-            </div>
-          ) : (
-            transactions.slice(0, 20).map(transaction => (
-              <div key={transaction.id} className={`transaction ${transaction.type}`}>
-                <div className="transaction-main">
-                  <div className="transaction-info">
-                    <span className="transaction-description">{transaction.description}</span>
-                    <div className="transaction-details">
-                      <span className="category-badge">{transaction.category}</span>
-                      <span className="payment-badge">{transaction.paymentMethod}</span>
-                    </div>
-                    <small className="transaction-meta">
-                      {transaction.location} • Added by: {transaction.addedBy} • {new Date(transaction.date).toLocaleDateString()}
-                    </small>
-                  </div>
-                  <div className="transaction-amount">
-                    <span className="amount">{transaction.formattedAmount}</span>
-                    {selectedLocation === 'all' && (
-                      <small className="usd-amount">
-                        ${transaction.amountUSD.toFixed(2)} USD
-                      </small>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-          {transactions.length > 20 && (
-            <div style={{textAlign: 'center', padding: '1rem', color: '#666'}}>
-              Showing first 20 transactions of {transactions.length} total
-            </div>
-          )}
-        </div>
+        )}
       </header>
     </div>
   );
