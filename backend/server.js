@@ -93,6 +93,9 @@ function writeDatabase(data) {
   }
 }
 
+// Initialize database when server starts
+initializeDatabase();
+
 // Initialize database tables
 function initializeDatabase() {
   // Users table
