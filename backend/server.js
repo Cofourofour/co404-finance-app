@@ -132,7 +132,7 @@ initializeDatabase();
       console.log('Default users inserted');
     }
   });
-}
+
 
 // Insert sample transactions
 function insertSampleTransactions() {
