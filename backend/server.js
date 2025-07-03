@@ -931,7 +931,7 @@ try {
     console.error('Clear transactions error:', error);
     res.status(500).json({ error: 'Failed to clear transactions' });
   }
-
+});
 // Health check
 app.get('/api/hello', (req, res) => {
   res.json({ message: 'Co404 Finance API with Excel Upload and Database is running!' });
