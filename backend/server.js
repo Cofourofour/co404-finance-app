@@ -285,22 +285,25 @@ const parseDate = (dateStr) => {
   }
 };
 
-// Helper function to parse amount and remove $ signs
+// Helper function to parse amount and remove $ signs - IMPROVED
 const parseAmount = (amountStr) => {
   try {
     if (amountStr === null || amountStr === undefined) return 0;
     
-    // Convert to string and clean
-    const cleanAmount = amountStr.toString()
+    // Convert to string and clean - IMPROVED CLEANING
+    let cleanAmount = amountStr.toString()
       .replace(/[$,\s()]/g, '') // Remove $, commas, spaces, parentheses
-      .replace(/[^\d.-]/g, ''); // Keep only digits, dots, and minus signs
+      .replace(/[^\d.-]/g, '') // Keep only digits, dots, and minus signs
+      .trim();
     
-    if (!cleanAmount || cleanAmount === '-') return 0;
+    // Handle edge cases
+    if (!cleanAmount || cleanAmount === '-' || cleanAmount === '.') return 0;
     
-    const amount = parseFloat(cleanAmount);
+    // Parse as float and get absolute value (we'll handle sign based on Type column)
+    const amount = Math.abs(parseFloat(cleanAmount));
     return isNaN(amount) ? 0 : amount;
   } catch (error) {
-    console.error('Amount parsing error:', error);
+    console.error('Amount parsing error for:', amountStr, error);
     return 0;
   }
 };
