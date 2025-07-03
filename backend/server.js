@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const XLSX = require('xlsx');
-const sqlite3 = require('sqlite3').verbose();
+const fs = require('fs');
 const path = require('path');
 require('dotenv').config();
 
@@ -12,16 +12,86 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 const JWT_SECRET = process.env.JWT_SECRET || 'co404-super-secret-key-change-this';
 
-// Database setup
-const dbPath = path.join(__dirname, 'co404_finance.db');
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) {
-    console.error('Error opening database:', err.message);
-  } else {
-    console.log('Connected to SQLite database at:', dbPath);
-    initializeDatabase();
+// JSON File Database setup
+const dbPath = path.join(__dirname, 'co404_database.json');
+
+// Initialize JSON database
+function initializeDatabase() {
+  try {
+    if (!fs.existsSync(dbPath)) {
+      const initialData = {
+        users: [
+          {
+            id: 1,
+            username: 'laurens',
+            password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+            role: 'admin',
+            name: 'Laurens',
+            location: 'all'
+          },
+          {
+            id: 2,
+            username: 'santi',
+            password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+            role: 'manager',
+            name: 'Santi',
+            location: 'San Cristóbal'
+          },
+          {
+            id: 3,
+            username: 'leo',
+            password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+            role: 'manager',
+            name: 'Leo',
+            location: 'Medellín'
+          },
+          {
+            id: 4,
+            username: 'ivonne',
+            password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+            role: 'manager',
+            name: 'Ivonne',
+            location: 'Oaxaca City'
+          },
+          {
+            id: 5,
+            username: 'volunteer1',
+            password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+            role: 'volunteer',
+            name: 'Alex (Volunteer)',
+            location: 'Oaxaca City'
+          }
+        ],
+        transactions: [],
+        nextUserId: 6,
+        nextTransactionId: 1
+      };
+      fs.writeFileSync(dbPath, JSON.stringify(initialData, null, 2));
+      console.log('✅ JSON database initialized');
+    }
+  } catch (error) {
+    console.error('Database initialization error:', error);
   }
-});
+}
+
+// Helper functions for JSON database
+function readDatabase() {
+  try {
+    const data = fs.readFileSync(dbPath, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    console.error('Read database error:', error);
+    return { users: [], transactions: [], nextUserId: 1, nextTransactionId: 1 };
+  }
+}
+
+function writeDatabase(data) {
+  try {
+    fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
+  } catch (error) {
+    console.error('Write database error:', error);
+  }
+}
 
 // Initialize database tables
 function initializeDatabase() {
@@ -371,59 +441,43 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// Database helper functions
+// Database helper functions - JSON VERSION
 function getUserById(id) {
-  return new Promise((resolve, reject) => {
-    db.get("SELECT * FROM users WHERE id = ?", [id], (err, row) => {
-      if (err) reject(err);
-      else resolve(row);
-    });
-  });
+  const data = readDatabase();
+  return data.users.find(user => user.id === id) || null;
 }
 
 function getUserByUsername(username) {
-  return new Promise((resolve, reject) => {
-    db.get("SELECT * FROM users WHERE username = ?", [username], (err, row) => {
-      if (err) reject(err);
-      else resolve(row);
-    });
-  });
+  const data = readDatabase();
+  return data.users.find(user => user.username === username) || null;
 }
 
 function getTransactions(whereClause = '', params = []) {
-  return new Promise((resolve, reject) => {
-    const query = `SELECT * FROM transactions ${whereClause} ORDER BY date DESC`;
-    db.all(query, params, (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
-    });
-  });
+  const data = readDatabase();
+  let transactions = data.transactions;
+  
+  // Simple filtering for location and user
+  if (whereClause.includes('location = ?') && params[0]) {
+    transactions = transactions.filter(t => t.location === params[0]);
+  }
+  if (whereClause.includes('addedBy = ?') && params[0]) {
+    transactions = transactions.filter(t => t.addedBy === params[0]);
+  }
+  
+  // Sort by date (newest first)
+  return transactions.sort((a, b) => new Date(b.date) - new Date(a.date));
 }
 
 function insertTransaction(transaction) {
-  return new Promise((resolve, reject) => {
-    const stmt = db.prepare(`INSERT INTO transactions 
-      (description, amount, type, category, paymentMethod, location, currency, date, addedBy, shift) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-    
-    stmt.run([
-      transaction.description,
-      transaction.amount,
-      transaction.type,
-      transaction.category,
-      transaction.paymentMethod,
-      transaction.location,
-      transaction.currency,
-      transaction.date,
-      transaction.addedBy,
-      transaction.shift
-    ], function(err) {
-      if (err) reject(err);
-      else resolve({ id: this.lastID, ...transaction });
-    });
-    
-    stmt.finalize();
-  });
+  const data = readDatabase();
+  const newTransaction = {
+    id: data.nextTransactionId++,
+    ...transaction,
+    created_at: new Date().toISOString()
+  };
+  data.transactions.push(newTransaction);
+  writeDatabase(data);
+  return newTransaction;
 }
 
 // 🎯 UPDATED EXCEL FILE UPLOAD ENDPOINT - FIXED TYPE COLUMN PARSING
@@ -547,7 +601,7 @@ app.post('/api/upload-excel', authenticateToken, upload.single('excelFile'), asy
         };
 
         // Insert into database
-        const insertedTransaction = await insertTransaction(transaction);
+        const insertedTransaction = insertTransaction(transaction);
         importedTransactions.push(insertedTransaction);
         
         detailedErrors.push({
@@ -617,7 +671,7 @@ app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
   
   try {
-    const user = await getUserByUsername(username);
+    const user = getUserByUsername(username);
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -652,7 +706,7 @@ app.post('/api/login', async (req, res) => {
 // Get current user info
 app.get('/api/me', authenticateToken, async (req, res) => {
   try {
-    const user = await getUserById(req.user.id);
+    const user = getUserById(req.user.id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -691,7 +745,7 @@ app.get('/api/transactions', authenticateToken, async (req, res) => {
       params = [location];
     }
 
-    const transactions = await getTransactions(whereClause, params);
+    const transactions = getTransactions(whereClause, params);
 
     // Add USD conversion for display
     const transactionsWithUSD = transactions.map(t => ({
@@ -733,7 +787,7 @@ app.post('/api/transactions', authenticateToken, async (req, res) => {
       shift: null
     };
     
-    const insertedTransaction = await insertTransaction(transaction);
+    const insertedTransaction = insertTransaction(transaction);
     
     // Return with USD conversion
     const transactionWithUSD = {
@@ -759,7 +813,7 @@ app.get('/api/location-summary', authenticateToken, async (req, res) => {
     const locationSummary = [];
     
     for (const location of ['San Cristóbal', 'Oaxaca City', 'Medellín']) {
-      const transactions = await getTransactions('WHERE location = ?', [location]);
+      const transactions = getTransactions('WHERE location = ?', [location]);
       const income = transactions.filter(t => t.amount > 0).reduce((sum, t) => sum + convertToUSD(t.amount, t.currency), 0);
       const expenses = Math.abs(transactions.filter(t => t.amount < 0).reduce((sum, t) => sum + convertToUSD(t.amount, t.currency), 0));
       
@@ -801,7 +855,7 @@ app.get('/api/monthly-data', authenticateToken, async (req, res) => {
     }
     
     // Get transactions from the database
-    const transactions = await getTransactions(whereClause, params);
+    const transactions = getTransactions(whereClause, params);
     
     // Group transactions by month
     const monthlyData = {};
@@ -863,14 +917,11 @@ app.delete('/api/clear-transactions', authenticateToken, async (req, res) => {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
-  try {
-    // Clear all transactions from database
-    await new Promise((resolve, reject) => {
-      db.run("DELETE FROM transactions", (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
+try {
+    const data = readDatabase();
+    data.transactions = [];
+    data.nextTransactionId = 1;
+    writeDatabase(data);
     
     res.json({
       success: true,
@@ -880,7 +931,6 @@ app.delete('/api/clear-transactions', authenticateToken, async (req, res) => {
     console.error('Clear transactions error:', error);
     res.status(500).json({ error: 'Failed to clear transactions' });
   }
-});
 
 // Health check
 app.get('/api/hello', (req, res) => {
