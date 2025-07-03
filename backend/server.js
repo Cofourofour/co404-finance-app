@@ -520,15 +520,21 @@ function insertShift(shift) {
   return newShift;
 }
 
-function updateShift(shiftId, updates) {
+function getActiveShift(username, location) {
   const data = readDatabase();
-  const shiftIndex = data.shifts.findIndex(s => s.id === shiftId);
-  if (shiftIndex !== -1) {
-    data.shifts[shiftIndex] = { ...data.shifts[shiftIndex], ...updates };
+  
+  // 🛡️ Safety check: ensure shifts array exists
+  if (!data.shifts) {
+    data.shifts = [];
+    data.nextShiftId = 1;
     writeDatabase(data);
-    return data.shifts[shiftIndex];
   }
-  return null;
+  
+  return data.shifts.find(s => 
+    s.username === username && 
+    s.location === location && 
+    s.status === 'active'
+  );
 }
 
 function getActiveShift(username, location) {
