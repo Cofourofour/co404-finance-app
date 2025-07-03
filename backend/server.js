@@ -1224,8 +1224,3 @@ app.get('/api/force-reset', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Co404 Finance Server running on port ${PORT}`);
 });
-
-// Start server
-app.listen(PORT, () => {
-  console.log(`Co404 Finance Server running on port ${PORT}`);
-});
