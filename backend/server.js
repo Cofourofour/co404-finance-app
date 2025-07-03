@@ -968,10 +968,6 @@ try {
 app.get('/api/hello', (req, res) => {
   res.json({ message: 'Co404 Finance API with Excel Upload and Database is running!' });
 });
-// Health check
-app.get('/api/hello', (req, res) => {
-  res.json({ message: 'Co404 Finance API with Excel Upload and Database is running!' });
-});
 
 // 🔧 TEMPORARY: Add new volunteers to existing database
 app.get('/api/add-volunteers', authenticateToken, (req, res) => {
@@ -1135,6 +1131,98 @@ app.get('/api/debug-users', (req, res) => {
   } catch (error) {
     res.status(500).json({ error: 'Failed to read users' });
   }
+});
+
+// Health check
+app.get('/api/hello', (req, res) => {
+  res.json({ message: 'Co404 Finance API with Excel Upload and Database is running!' });
+});
+
+// 🔧 TEMPORARY: FORCE Reset database 
+app.get('/api/force-reset', (req, res) => {
+  try {
+    const initialData = {
+      users: [
+        {
+          id: 1,
+          username: 'laurens',
+          password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+          role: 'admin',
+          name: 'Laurens',
+          location: 'all'
+        },
+        {
+          id: 2,
+          username: 'santi',
+          password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+          role: 'manager',
+          name: 'Santi',
+          location: 'San Cristóbal'
+        },
+        {
+          id: 3,
+          username: 'leo',
+          password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+          role: 'manager',
+          name: 'Leo',
+          location: 'Medellín'
+        },
+        {
+          id: 4,
+          username: 'ivonne',
+          password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+          role: 'manager',
+          name: 'Ivonne',
+          location: 'Oaxaca City'
+        },
+        {
+          id: 5,
+          username: 'volsc',
+          password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+          role: 'volunteer',
+          name: 'San Cristóbal Volunteer',
+          location: 'San Cristóbal'
+        },
+        {
+          id: 6,
+          username: 'voloax',
+          password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+          role: 'volunteer',
+          name: 'Oaxaca City Volunteer',
+          location: 'Oaxaca City'
+        },
+        {
+          id: 7,
+          username: 'volmed',
+          password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+          role: 'volunteer',
+          name: 'Medellín Volunteer',
+          location: 'Medellín'
+        }
+      ],
+      transactions: [],
+      shifts: [],
+      nextUserId: 8,
+      nextTransactionId: 1,
+      nextShiftId: 1
+    };
+    
+    writeDatabase(initialData);
+    
+    res.json({ 
+      success: true, 
+      message: 'Database FORCE RESET with volsc, voloax, volmed!',
+      userCount: initialData.users.length
+    });
+  } catch (error) {
+    console.error('Force reset error:', error);
+    res.status(500).json({ error: 'Failed to force reset database' });
+  }
+});
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`Co404 Finance Server running on port ${PORT}`);
 });
 
 // Start server
