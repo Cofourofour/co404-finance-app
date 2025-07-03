@@ -1033,6 +1033,27 @@ app.get('/api/add-volunteers', authenticateToken, (req, res) => {
   }
 });
 
+// 🔧 TEMPORARY: Reset database (ADMIN ONLY)
+app.get('/api/reset-database', (req, res) => {
+  try {
+    // Delete existing database file
+    if (fs.existsSync(dbPath)) {
+      fs.unlinkSync(dbPath);
+    }
+    
+    // Reinitialize with new volunteers
+    initializeDatabase();
+    
+    res.json({ 
+      success: true, 
+      message: 'Database reset successfully with new volunteers!' 
+    });
+  } catch (error) {
+    console.error('Reset database error:', error);
+    res.status(500).json({ error: 'Failed to reset database' });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Co404 Finance Server running on port ${PORT}`);
