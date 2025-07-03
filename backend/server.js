@@ -55,7 +55,7 @@ function initializeDatabase() {
           },
           {
             id: 5,
-            username: 'volunteer_sc',
+            username: 'volsc',
             password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
             role: 'volunteer',
             name: 'San Cristóbal Volunteer',
@@ -63,7 +63,7 @@ function initializeDatabase() {
           },
           {
             id: 6,
-            username: 'volunteer_oax',
+            username: 'voloax',
             password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
             role: 'volunteer',
             name: 'Oaxaca City Volunteer',
@@ -71,7 +71,7 @@ function initializeDatabase() {
           },
           {
             id: 7,
-            username: 'volunteer_med',
+            username: 'volmed',
             password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
             role: 'volunteer',
             name: 'Medellín Volunteer',
@@ -112,107 +112,6 @@ function writeDatabase(data) {
 // Initialize database when server starts
 initializeDatabase();
 
-// Initialize JSON database
-function initializeDatabase() {
-  try {
-    if (!fs.existsSync(dbPath)) {
-      const initialData = {
-        users: [
-          {
-            id: 1,
-            username: 'laurens',
-            password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
-            role: 'admin',
-            name: 'Laurens',
-            location: 'all'
-          },
-          {
-            id: 2,
-            username: 'santi',
-            password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
-            role: 'manager',
-            name: 'Santi',
-            location: 'San Cristóbal'
-          },
-          {
-            id: 3,
-            username: 'leo',
-            password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
-            role: 'manager',
-            name: 'Leo',
-            location: 'Medellín'
-          },
-          {
-            id: 4,
-            username: 'ivonne',
-            password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
-            role: 'manager',
-            name: 'Ivonne',
-            location: 'Oaxaca City'
-          },
-          {
-            id: 5,
-            username: 'volunteer1',
-            password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
-            role: 'volunteer',
-            name: 'Alex (Volunteer)',
-            location: 'Oaxaca City'
-          }
-        ],
-        transactions: [],
-        shifts: [],
-        nextUserId: 6,
-        nextTransactionId: 1,
-        nextShiftId: 1
-      };
-      fs.writeFileSync(dbPath, JSON.stringify(initialData, null, 2));
-      console.log('✅ JSON database initialized with users');
-    } else {
-      console.log('✅ JSON database already exists');
-    }
-  } catch (error) {
-    console.error('Database initialization error:', error);
-  }
-}
-// Insert default users
-function insertDefaultUsers() {
-  const defaultUsers = [
-    {
-      username: 'laurens',
-      password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
-      role: 'admin',
-      name: 'Laurens',
-      location: 'all'
-    },
-    {
-      username: 'santi',
-      password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
-      role: 'manager',
-      name: 'Santi',
-      location: 'San Cristóbal'
-    },
-    {
-      username: 'leo',
-      password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
-      role: 'manager',
-      name: 'Leo',
-      location: 'Medellín'
-    },
-    {
-      username: 'ivonne',
-      password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
-      role: 'manager',
-      name: 'Ivonne',
-      location: 'Oaxaca City'
-    },
-    {
-      username: 'volunteer1',
-      password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
-      role: 'volunteer',
-      name: 'Alex (Volunteer)',
-      location: 'Oaxaca City'
-    }
-  ];
 
   // Check if users already exist
   db.get("SELECT COUNT(*) as count FROM users", (err, row) => {
