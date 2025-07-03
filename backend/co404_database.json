@@ -1,0 +1,47 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "username": "laurens",
+      "password": "$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi",
+      "role": "admin",
+      "name": "Laurens",
+      "location": "all"
+    },
+    {
+      "id": 2,
+      "username": "santi",
+      "password": "$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi",
+      "role": "manager",
+      "name": "Santi",
+      "location": "San Cristóbal"
+    },
+    {
+      "id": 3,
+      "username": "leo",
+      "password": "$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi",
+      "role": "manager",
+      "name": "Leo",
+      "location": "Medellín"
+    },
+    {
+      "id": 4,
+      "username": "ivonne",
+      "password": "$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi",
+      "role": "manager",
+      "name": "Ivonne",
+      "location": "Oaxaca City"
+    },
+    {
+      "id": 5,
+      "username": "volunteer1",
+      "password": "$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi",
+      "role": "volunteer",
+      "name": "Alex (Volunteer)",
+      "location": "Oaxaca City"
+    }
+  ],
+  "transactions": [],
+  "nextUserId": 6,
+  "nextTransactionId": 1
+}

@@ -96,25 +96,66 @@ function writeDatabase(data) {
 // Initialize database when server starts
 initializeDatabase();
 
-// Initialize database tables
+// Initialize JSON database
 function initializeDatabase() {
-  // Users table
-  db.run(`CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    role TEXT NOT NULL,
-    name TEXT NOT NULL,
-    location TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`, (err) => {
-    if (err) {
-      console.error('Error creating users table:', err);
+  try {
+    if (!fs.existsSync(dbPath)) {
+      const initialData = {
+        users: [
+          {
+            id: 1,
+            username: 'laurens',
+            password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+            role: 'admin',
+            name: 'Laurens',
+            location: 'all'
+          },
+          {
+            id: 2,
+            username: 'santi',
+            password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+            role: 'manager',
+            name: 'Santi',
+            location: 'San Cristóbal'
+          },
+          {
+            id: 3,
+            username: 'leo',
+            password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+            role: 'manager',
+            name: 'Leo',
+            location: 'Medellín'
+          },
+          {
+            id: 4,
+            username: 'ivonne',
+            password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+            role: 'manager',
+            name: 'Ivonne',
+            location: 'Oaxaca City'
+          },
+          {
+            id: 5,
+            username: 'volunteer1',
+            password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+            role: 'volunteer',
+            name: 'Alex (Volunteer)',
+            location: 'Oaxaca City'
+          }
+        ],
+        transactions: [],
+        nextUserId: 6,
+        nextTransactionId: 1
+      };
+      fs.writeFileSync(dbPath, JSON.stringify(initialData, null, 2));
+      console.log('✅ JSON database initialized with users');
     } else {
-      console.log('Users table ready');
-      insertDefaultUsers();
+      console.log('✅ JSON database already exists');
     }
-  });
+  } catch (error) {
+    console.error('Database initialization error:', error);
+  }
+}
 
   // Transactions table
   db.run(`CREATE TABLE IF NOT EXISTS transactions (
@@ -138,7 +179,7 @@ function initializeDatabase() {
       insertSampleTransactions();
     }
   });
-}
+
 
 // Insert default users
 function insertDefaultUsers() {
