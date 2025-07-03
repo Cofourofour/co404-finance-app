@@ -79,8 +79,10 @@ function initializeDatabase() {
           }
         ],
         transactions: [],
+        shifts: [],
         nextUserId: 8,
         nextTransactionId: 1
+        nextShiftId: 1
       };
       fs.writeFileSync(dbPath, JSON.stringify(initialData, null, 2));
       console.log('✅ JSON database initialized');
@@ -362,23 +364,6 @@ function insertShift(shift) {
   data.shifts.push(newShift);
   writeDatabase(data);
   return newShift;
-}
-
-function getActiveShift(username, location) {
-  const data = readDatabase();
-  
-  // 🛡️ Safety check: ensure shifts array exists
-  if (!data.shifts) {
-    data.shifts = [];
-    data.nextShiftId = 1;
-    writeDatabase(data);
-  }
-  
-  return data.shifts.find(s => 
-    s.username === username && 
-    s.location === location && 
-    s.status === 'active'
-  );
 }
 
 function getActiveShift(username, location) {
@@ -1131,11 +1116,6 @@ app.get('/api/debug-users', (req, res) => {
   } catch (error) {
     res.status(500).json({ error: 'Failed to read users' });
   }
-});
-
-// Health check
-app.get('/api/hello', (req, res) => {
-  res.json({ message: 'Co404 Finance API with Excel Upload and Database is running!' });
 });
 
 // 🔧 TEMPORARY: FORCE Reset database 
