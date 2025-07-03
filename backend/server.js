@@ -156,31 +156,6 @@ function initializeDatabase() {
     console.error('Database initialization error:', error);
   }
 }
-
-  // Transactions table
-  db.run(`CREATE TABLE IF NOT EXISTS transactions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    description TEXT NOT NULL,
-    amount REAL NOT NULL,
-    type TEXT NOT NULL,
-    category TEXT NOT NULL,
-    paymentMethod TEXT NOT NULL,
-    location TEXT NOT NULL,
-    currency TEXT NOT NULL,
-    date DATETIME NOT NULL,
-    addedBy TEXT NOT NULL,
-    shift TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`, (err) => {
-    if (err) {
-      console.error('Error creating transactions table:', err);
-    } else {
-      console.log('Transactions table ready');
-      insertSampleTransactions();
-    }
-  });
-
-
 // Insert default users
 function insertDefaultUsers() {
   const defaultUsers = [
