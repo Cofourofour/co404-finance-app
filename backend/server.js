@@ -1041,33 +1041,82 @@ app.get('/api/reset-database', (req, res) => {
       fs.unlinkSync(dbPath);
     }
     
-    // Reinitialize with new volunteers
-    initializeDatabase();
+    // 🔥 FORCE CREATE NEW DATABASE with correct volunteers
+    const initialData = {
+      users: [
+        {
+          id: 1,
+          username: 'laurens',
+          password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+          role: 'admin',
+          name: 'Laurens',
+          location: 'all'
+        },
+        {
+          id: 2,
+          username: 'santi',
+          password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+          role: 'manager',
+          name: 'Santi',
+          location: 'San Cristóbal'
+        },
+        {
+          id: 3,
+          username: 'leo',
+          password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+          role: 'manager',
+          name: 'Leo',
+          location: 'Medellín'
+        },
+        {
+          id: 4,
+          username: 'ivonne',
+          password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+          role: 'manager',
+          name: 'Ivonne',
+          location: 'Oaxaca City'
+        },
+        {
+          id: 5,
+          username: 'volsc',
+          password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+          role: 'volunteer',
+          name: 'San Cristóbal Volunteer',
+          location: 'San Cristóbal'
+        },
+        {
+          id: 6,
+          username: 'voloax',
+          password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+          role: 'volunteer',
+          name: 'Oaxaca City Volunteer',
+          location: 'Oaxaca City'
+        },
+        {
+          id: 7,
+          username: 'volmed',
+          password: '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
+          role: 'volunteer',
+          name: 'Medellín Volunteer',
+          location: 'Medellín'
+        }
+      ],
+      transactions: [],
+      shifts: [],
+      nextUserId: 8,
+      nextTransactionId: 1,
+      nextShiftId: 1
+    };
+    
+    fs.writeFileSync(dbPath, JSON.stringify(initialData, null, 2));
     
     res.json({ 
       success: true, 
-      message: 'Database reset successfully with new volunteers!' 
+      message: 'Database reset successfully with NEW volunteers (volsc, voloax, volmed)!' 
     });
   } catch (error) {
     console.error('Reset database error:', error);
     res.status(500).json({ error: 'Failed to reset database' });
-  }
-});
-
-// 🔧 DEBUG: List all users in database
-app.get('/api/debug-users', (req, res) => {
-  try {
-    const data = readDatabase();
-    res.json({ 
-      users: data.users.map(u => ({ 
-        id: u.id, 
-        username: u.username, 
-        role: u.role, 
-        location: u.location 
-      }))
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to read users' });
   }
 });
 
