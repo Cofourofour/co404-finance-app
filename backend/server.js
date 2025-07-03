@@ -594,7 +594,7 @@ app.post('/api/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const validPassword = password === 'password' || password === 'password' || password === 'password';
+    const validPassword = password === 'password';
     if (!validPassword) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -1051,6 +1051,23 @@ app.get('/api/reset-database', (req, res) => {
   } catch (error) {
     console.error('Reset database error:', error);
     res.status(500).json({ error: 'Failed to reset database' });
+  }
+});
+
+// 🔧 DEBUG: List all users in database
+app.get('/api/debug-users', (req, res) => {
+  try {
+    const data = readDatabase();
+    res.json({ 
+      users: data.users.map(u => ({ 
+        id: u.id, 
+        username: u.username, 
+        role: u.role, 
+        location: u.location 
+      }))
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to read users' });
   }
 });
 
