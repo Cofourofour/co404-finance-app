@@ -32,6 +32,10 @@ function App() {
     1: 0, 2: 0, 5: 0, 10: 0, 20: 0, 50: 0, 100: 0, 200: 0, 500: 0, 1000: 0
   });
 
+  // 🔥 NEW VARIANCE HANDLING STATE
+  const [varianceInfo, setVarianceInfo] = useState(null);
+  const [showVarianceModal, setShowVarianceModal] = useState(false);
+
   const [newTransaction, setNewTransaction] = useState({
     description: '',
     amount: '',
@@ -117,7 +121,8 @@ function App() {
     }
   };
 
-  const handleEndShift = async () => {
+// 🔥 ENHANCED SHIFT END WITH VARIANCE HANDLING
+  const handleEndShift = async (acceptVariance = false) => {
     setShiftLoading(true);
     
     try {
@@ -127,30 +132,36 @@ function App() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('co404_token')}`
         },
-        body: JSON.stringify({ cashCount })
+        body: JSON.stringify({ 
+          cashCount,
+          acceptVariance 
+        })
       });
       
+      const result = await response.json();
+      
       if (response.ok) {
-        const result = await response.json();
+        // Check if variance was detected
+        if (result.varianceDetected && !acceptVariance) {
+          setVarianceInfo(result);
+          setShowVarianceModal(true);
+          setShiftLoading(false);
+          return;
+        }
+        
+        // Shift completed successfully
         setActiveShift(null);
         setShowEndShift(false);
+        setShowVarianceModal(false);
+        setVarianceInfo(null);
         setCashCount({ 1: 0, 2: 0, 5: 0, 10: 0, 20: 0, 50: 0, 100: 0, 200: 0, 500: 0, 1000: 0 });
         
-        // Show variance message
-        const variance = result.summary.variance;
-        if (variance > 0) {
-          alert(`💰 You have ${variance} pesos too much! Please check your count.`);
-        } else if (variance < 0) {
-          alert(`❌ You're missing ${Math.abs(variance)} pesos! Please recount.`);
-        } else {
-          alert(`✅ Perfect! Your cash count matches exactly!`);
-        }
+        alert(result.summary.message);
         
         // Refresh transactions
         fetchTransactions();
       } else {
-        const error = await response.json();
-        alert(`❌ ${error.error}`);
+        alert(`❌ ${result.error}`);
       }
     } catch (error) {
       console.error('End shift error:', error);
@@ -178,7 +189,16 @@ function App() {
       console.error('Fetch active shift error:', error);
     }
   };
+const handleCountAgain = () => {
+    setShowVarianceModal(false);
+    setVarianceInfo(null);
+    // Keep the end shift modal open so they can recount
+  };
 
+  const handleAcceptVariance = () => {
+    setShowVarianceModal(false);
+    handleEndShift(true); // Call with acceptVariance = true
+  };
   // Fetch user info
   const fetchUserInfo = async (token) => {
     try {
@@ -401,15 +421,29 @@ function App() {
     
   const totalBalance = totalIncome - totalExpenses;
 
-  // Currency symbol
+// 🔥 ENHANCED CURRENCY DISPLAY FUNCTION
   const getCurrencySymbol = () => {
-    if (selectedLocation === 'all') return '$USD';
-    const locationCurrency = {
+    // Admin logic: USD when "All Locations" selected, otherwise local currency
+    if (user?.role === 'admin') {
+      if (selectedLocation === 'all') {
+        return '$USD';
+      } else {
+        const locationCurrency = {
+          'San Cristóbal': '$MXN',
+          'Oaxaca City': '$MXN', 
+          'Medellín': '$COP'
+        };
+        return locationCurrency[selectedLocation] || '$';
+      }
+    }
+    
+    // Managers/Volunteers: Always show local currency
+    const userLocationCurrency = {
       'San Cristóbal': '$MXN',
       'Oaxaca City': '$MXN', 
       'Medellín': '$COP'
     };
-    return locationCurrency[selectedLocation] || '$';
+    return userLocationCurrency[user?.location] || '$MXN';
   };
 
   // Get available categories
@@ -457,10 +491,16 @@ function App() {
             </form>
             <div className="demo-credentials">
               <small>
-                <strong>Demo Credentials:</strong><br/>
-                Admin: laurens / admin123<br/>
-                Manager: santi / manager123<br/>
-                Volunteer: volunteer1 / volunteer123
+                <strong>🔥 Updated Demo Credentials (Password: "password"):</strong><br/>
+                <strong>Admin:</strong> laurens / password<br/>
+                <strong>Managers:</strong><br/>
+                • santi / password (San Cristóbal)<br/>
+                • leo / password (Medellín)<br/>
+                • ivonne / password (Oaxaca City)<br/>
+                <strong>Volunteers:</strong><br/>
+                • volunteer_sc / password (San Cristóbal)<br/>
+                • volunteer_oax / password (Oaxaca City)<br/>
+                • volunteer_med / password (Medellín)
               </small>
             </div>
           </div>
@@ -757,6 +797,66 @@ function App() {
         )}
 
         {/* MODALS */}
+        {/* MODALS */}
+        {/* 🔥 NEW VARIANCE DETECTION MODAL */}
+        {showVarianceModal && varianceInfo && (
+          <div style={{
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            background: 'rgba(67, 54, 45, 0.9)', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            zIndex: 1001,
+            backdropFilter: 'blur(8px)'
+          }}>
+            <div style={{
+              background: 'white',
+              borderRadius: '20px',
+              padding: '3rem',
+              width: '95vw',
+              maxWidth: '600px',
+              boxShadow: '0 25px 50px rgba(0, 0, 0, 0.25)',
+              textAlign: 'center'
+            }}>
+              <div style={{
+                fontSize: '4rem',
+                marginBottom: '1rem'
+              }}>
+                {varianceInfo.variance > 0 ? '⚠️' : '❌'}
+              </div>
+              
+              <h2 style={{
+                fontFamily: 'Montserrat, sans-serif',
+                fontSize: '1.8rem',
+                fontWeight: '700',
+                color: varianceInfo.variance > 0 ? '#D68910' : '#B03A2E',
+                marginBottom: '1rem'
+              }}>
+                Cash Count Variance Detected!
+              </h2>
+              
+              <div style={{
+                background: '#F8F9FA',
+                padding: '2rem',
+                borderRadius: '12px',
+                marginBottom: '2rem',
+                textAlign: 'left'
+              }}>
+                <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem'}}>
+                  <span>Starting Cash:</span>
+                  <strong>${varianceInfo.startingCash.toLocaleString()}</strong>
+                </div>
+                <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem'}}>
+                  <span>Transaction Total:</span>
+                  <strong style={{color: varianceInfo.transactionTotal >= 0 ? '#28A745' : '#DC3545'}}>
+                    ${varianceInfo.transactionTotal.toLocaleString()}
+                  </strong>
+                </div>
+                <div style={{display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem'}}></div>
         {/* Start Shift Modal */}
         {showStartShift && (
           <div style={{
