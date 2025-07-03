@@ -144,8 +144,10 @@ function initializeDatabase() {
           }
         ],
         transactions: [],
+        shifts: [],
         nextUserId: 6,
         nextTransactionId: 1
+        nextShiftId: 1 
       };
       fs.writeFileSync(dbPath, JSON.stringify(initialData, null, 2));
       console.log('✅ JSON database initialized with users');
@@ -498,6 +500,38 @@ function insertTransaction(transaction) {
   writeDatabase(data);
   return newTransaction;
 }
+// Shift helper functions
+function insertShift(shift) {
+  const data = readDatabase();
+  const newShift = {
+    id: data.nextShiftId++,
+    ...shift,
+    created_at: new Date().toISOString()
+  };
+  data.shifts.push(newShift);
+  writeDatabase(data);
+  return newShift;
+}
+
+function updateShift(shiftId, updates) {
+  const data = readDatabase();
+  const shiftIndex = data.shifts.findIndex(s => s.id === shiftId);
+  if (shiftIndex !== -1) {
+    data.shifts[shiftIndex] = { ...data.shifts[shiftIndex], ...updates };
+    writeDatabase(data);
+    return data.shifts[shiftIndex];
+  }
+  return null;
+}
+
+function getActiveShift(username, location) {
+  const data = readDatabase();
+  return data.shifts.find(s => 
+    s.username === username && 
+    s.location === location && 
+    s.status === 'active'
+  );
+}
 
 // 🎯 UPDATED EXCEL FILE UPLOAD ENDPOINT - FIXED TYPE COLUMN PARSING
 app.post('/api/upload-excel', authenticateToken, upload.single('excelFile'), async (req, res) => {
@@ -793,6 +827,9 @@ app.post('/api/transactions', authenticateToken, async (req, res) => {
     
     const currency = LOCATION_CURRENCY[transactionLocation];
     
+    // Get active shift for linking
+    const activeShift = getActiveShift(req.user.username, transactionLocation);
+    
     const transaction = {
       description,
       amount: Number(amount),
@@ -803,7 +840,7 @@ app.post('/api/transactions', authenticateToken, async (req, res) => {
       currency,
       date: new Date().toISOString(),
       addedBy: req.user.username,
-      shift: null
+      shift: activeShift ? activeShift.id : null
     };
     
     const insertedTransaction = insertTransaction(transaction);
@@ -818,6 +855,103 @@ app.post('/api/transactions', authenticateToken, async (req, res) => {
     res.json(transactionWithUSD);
   } catch (error) {
     console.error('Add transaction error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+// Start shift
+app.post('/api/shifts/start', authenticateToken, (req, res) => {
+  try {
+    const { startingCash, shiftType } = req.body;
+    
+    // Check if user already has an active shift
+    const activeShift = getActiveShift(req.user.username, req.user.location);
+    if (activeShift) {
+      return res.status(400).json({ error: 'You already have an active shift' });
+    }
+    
+    const shift = {
+      username: req.user.username,
+      location: req.user.location,
+      shiftType: shiftType || 'morning', // morning or evening
+      startingCash: Number(startingCash),
+      status: 'active',
+      startTime: new Date().toISOString(),
+      endTime: null,
+      transactions: [],
+      finalCount: null,
+      variance: null
+    };
+    
+    const newShift = insertShift(shift);
+    res.json(newShift);
+  } catch (error) {
+    console.error('Start shift error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get active shift
+app.get('/api/shifts/active', authenticateToken, (req, res) => {
+  try {
+    const activeShift = getActiveShift(req.user.username, req.user.location);
+    res.json(activeShift || null);
+  } catch (error) {
+    console.error('Get active shift error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+// End shift with cash count
+app.post('/api/shifts/end', authenticateToken, (req, res) => {
+  try {
+    const { cashCount } = req.body; // cashCount = { 1: 5, 2: 10, 5: 2, etc }
+    
+    const activeShift = getActiveShift(req.user.username, req.user.location);
+    if (!activeShift) {
+      return res.status(400).json({ error: 'No active shift found' });
+    }
+    
+    // Calculate total from denominations
+    const denominations = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
+    const actualTotal = denominations.reduce((total, denom) => {
+      return total + (denom * (cashCount[denom] || 0));
+    }, 0);
+    
+    // Calculate expected total based on shift transactions
+    const shiftTransactions = getTransactions('', []).filter(t => 
+      t.addedBy === req.user.username && 
+      new Date(t.date) >= new Date(activeShift.startTime)
+    );
+    
+    const transactionTotal = shiftTransactions.reduce((sum, t) => sum + t.amount, 0);
+    const expectedTotal = activeShift.startingCash + transactionTotal;
+    const variance = actualTotal - expectedTotal;
+    
+    // Update shift
+    const updatedShift = updateShift(activeShift.id, {
+      status: 'completed',
+      endTime: new Date().toISOString(),
+      finalCount: {
+        denominations: cashCount,
+        total: actualTotal
+      },
+      expectedTotal,
+      variance,
+      transactions: shiftTransactions.map(t => t.id)
+    });
+    
+    res.json({
+      shift: updatedShift,
+      summary: {
+        startingCash: activeShift.startingCash,
+        transactionTotal,
+        expectedTotal,
+        actualTotal,
+        variance,
+        transactionCount: shiftTransactions.length
+      }
+    });
+  } catch (error) {
+    console.error('End shift error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
