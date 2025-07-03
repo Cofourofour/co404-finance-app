@@ -1120,6 +1120,23 @@ app.get('/api/reset-database', (req, res) => {
   }
 });
 
+// 🔧 DEBUG: List all users in database
+app.get('/api/debug-users', (req, res) => {
+  try {
+    const data = readDatabase();
+    res.json({ 
+      users: data.users.map(u => ({ 
+        id: u.id, 
+        username: u.username, 
+        role: u.role, 
+        location: u.location 
+      }))
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to read users' });
+  }
+});
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Co404 Finance Server running on port ${PORT}`);
