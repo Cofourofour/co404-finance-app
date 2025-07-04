@@ -8,6 +8,7 @@ import { config } from 'dotenv';
 import authRoutes from './routes/auth';
 import transactionRoutes from './routes/transactions';
 import shiftRoutes from './routes/shifts';
+import userRoutes from './routes/users';
 
 // Load environment variables
 config();
@@ -23,8 +24,6 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.text({ limit: '50mb' }));
 
 // Routes
-import userRoutes from './routes/users';
-
 app.use('/api', authRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/shifts', shiftRoutes);

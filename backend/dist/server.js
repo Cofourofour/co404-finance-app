@@ -11,6 +11,7 @@ const dotenv_1 = require("dotenv");
 const auth_1 = __importDefault(require("./routes/auth"));
 const transactions_1 = __importDefault(require("./routes/transactions"));
 const shifts_1 = __importDefault(require("./routes/shifts"));
+const users_1 = __importDefault(require("./routes/users"));
 (0, dotenv_1.config)();
 const app = (0, express_1.default)();
 const PORT = process.env.PORT || 5000;
@@ -22,6 +23,7 @@ app.use(express_1.default.text({ limit: '50mb' }));
 app.use('/api', auth_1.default);
 app.use('/api/transactions', transactions_1.default);
 app.use('/api/shifts', shifts_1.default);
+app.use('/api/users', users_1.default);
 app.get('/api/hello', (req, res) => {
     res.json({
         message: 'Co404 Finance API with TypeScript is running! 🚀',

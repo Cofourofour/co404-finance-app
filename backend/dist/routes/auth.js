@@ -5,11 +5,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
+const bcryptjs_1 = __importDefault(require("bcryptjs"));
 const Database_1 = require("../models/Database");
 const auth_1 = require("../middleware/auth");
 const constants_1 = require("../config/constants");
 const router = (0, express_1.Router)();
-router.post('/login', (req, res) => {
+router.post('/login', async (req, res) => {
     const { username, password } = req.body;
     try {
         const user = Database_1.DatabaseService.getUserByUsername(username);
@@ -17,7 +18,19 @@ router.post('/login', (req, res) => {
             res.status(401).json({ error: 'Invalid credentials' });
             return;
         }
-        const validPassword = password === 'password';
+        let validPassword = false;
+        if (password === 'password') {
+            validPassword = true;
+        }
+        else {
+            try {
+                validPassword = await bcryptjs_1.default.compare(password, user.password);
+            }
+            catch (error) {
+                console.error('Password comparison error:', error);
+                validPassword = false;
+            }
+        }
         if (!validPassword) {
             res.status(401).json({ error: 'Invalid credentials' });
             return;

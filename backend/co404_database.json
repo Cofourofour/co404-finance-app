@@ -39,9 +39,26 @@
       "role": "volunteer",
       "name": "Alex (Volunteer)",
       "location": "Oaxaca City"
+    },
+    {
+      "id": 6,
+      "username": "newvolunteer",
+      "email": "newvolunteer@co404.com",
+      "password": "$2b$10$iAywPou9wSUIaS3T3wkc.uPrDfczcHIfA8G8dTC8JJ86RRrtvQ.Ae",
+      "role": "volunteer",
+      "name": "Jane Doe",
+      "firstName": "Jane",
+      "lastName": "Doe",
+      "location": "Oaxaca City",
+      "isFirstLogin": false,
+      "phoneNumber": "+52 123 456 7890",
+      "createdAt": "2025-07-04T19:11:44.617Z",
+      "createdBy": 1,
+      "status": "active",
+      "lastLogin": "2025-07-04T19:13:21.370Z"
     }
   ],
   "transactions": [],
-  "nextUserId": 6,
+  "nextUserId": 7,
   "nextTransactionId": 1
 }

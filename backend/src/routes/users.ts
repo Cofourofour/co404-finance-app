@@ -8,9 +8,37 @@ import jwt from 'jsonwebtoken';
 import { DatabaseService } from '../models/Database';
 import { authenticateToken } from '../middleware/auth';
 import { JWT_SECRET } from '../config/constants';
-import { User, CreateUserRequest, FirstTimePasswordSetup } from '../types';
+import { User } from '../types';
 
 const router = Router();
+
+// Extended User interface for new user management features
+interface ExtendedUser extends User {
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  isFirstLogin?: boolean;
+  phoneNumber?: string;
+  createdAt?: string;
+  createdBy?: number;
+  status?: 'active' | 'pending' | 'inactive';
+  lastLogin?: string;
+}
+
+interface CreateUserRequest {
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: 'volunteer' | 'manager';
+  location: string;
+  phoneNumber?: string;
+}
+
+interface FirstTimePasswordSetup {
+  tempToken: string;
+  newPassword: string;
+  confirmPassword: string;
+}
 
 // Generate temporary token for first-time setup
 const generateTempToken = (email: string): string => {
@@ -27,23 +55,26 @@ const canCreateUsers = (user: any): boolean => {
   return user.role === 'admin' || user.role === 'manager';
 };
 
-// Get all users (Admin only sees all, Manager sees their location)
+// Get all users (Admin sees all, Manager sees their location)
 router.get('/', authenticateToken, (req: Request, res: Response): void => {
   try {
     const data = DatabaseService.readDatabase();
-    let users = data.users.map(user => ({
-      id: user.id,
-      username: user.username,
-      email: user.email || user.username, // Fallback for existing users
-      firstName: user.firstName || user.name?.split(' ')[0] || 'Unknown',
-      lastName: user.lastName || user.name?.split(' ').slice(1).join(' ') || '',
-      role: user.role,
-      location: user.location,
-      status: user.status || 'active',
-      createdAt: user.createdAt || new Date().toISOString(),
-      lastLogin: user.lastLogin,
-      isFirstLogin: user.isFirstLogin || false
-    }));
+    let users = data.users.map(user => {
+      const extUser = user as ExtendedUser;
+      return {
+        id: extUser.id,
+        username: extUser.username,
+        email: extUser.email || extUser.username, // Fallback for existing users
+        firstName: extUser.firstName || extUser.name?.split(' ')[0] || 'Unknown',
+        lastName: extUser.lastName || extUser.name?.split(' ').slice(1).join(' ') || '',
+        role: extUser.role,
+        location: extUser.location,
+        status: extUser.status || 'active',
+        createdAt: extUser.createdAt || new Date().toISOString(),
+        lastLogin: extUser.lastLogin,
+        isFirstLogin: extUser.isFirstLogin || false
+      };
+    });
 
     // Filter based on role
     if (req.user.role === 'manager') {
@@ -77,9 +108,10 @@ router.post('/', authenticateToken, async (req: Request, res: Response): Promise
 
     // Check if email already exists
     const data = DatabaseService.readDatabase();
-    const existingUser = data.users.find(u => 
-      u.email === email || u.username === email
-    );
+    const existingUser = data.users.find(u => {
+      const extU = u as ExtendedUser;
+      return extU.email === email || u.username === email;
+    });
 
     if (existingUser) {
       res.status(400).json({ error: 'User with this email already exists' });
@@ -99,7 +131,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response): Promise
     // Generate temporary token for first-time setup
     const tempToken = generateTempToken(email);
 
-    const newUser: User = {
+    const newUser: ExtendedUser = {
       id: data.nextUserId++,
       username: generateUsername(email),
       email,
@@ -116,7 +148,7 @@ router.post('/', authenticateToken, async (req: Request, res: Response): Promise
       status: 'pending'
     };
 
-    data.users.push(newUser);
+    data.users.push(newUser as User);
     DatabaseService.writeDatabase(data);
 
     // In a real app, you'd send an email here with the tempToken
@@ -176,14 +208,17 @@ router.post('/setup-password', async (req: Request, res: Response): Promise<void
 
     // Find user by email
     const data = DatabaseService.readDatabase();
-    const userIndex = data.users.findIndex(u => u.email === decoded.email);
+    const userIndex = data.users.findIndex(u => {
+      const extU = u as ExtendedUser;
+      return extU.email === decoded.email;
+    });
 
     if (userIndex === -1) {
       res.status(404).json({ error: 'User not found' });
       return;
     }
 
-    const user = data.users[userIndex];
+    const user = data.users[userIndex] as ExtendedUser;
     if (!user.isFirstLogin) {
       res.status(400).json({ error: 'Password already set up' });
       return;
@@ -191,7 +226,7 @@ router.post('/setup-password', async (req: Request, res: Response): Promise<void
 
     // Update user with new password
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    data.users[userIndex] = {
+    const updatedUser: ExtendedUser = {
       ...user,
       password: hashedPassword,
       isFirstLogin: false,
@@ -199,6 +234,7 @@ router.post('/setup-password', async (req: Request, res: Response): Promise<void
       lastLogin: new Date().toISOString()
     };
 
+    data.users[userIndex] = updatedUser as User;
     DatabaseService.writeDatabase(data);
 
     // Generate login token
@@ -246,7 +282,7 @@ router.put('/:id', authenticateToken, async (req: Request, res: Response): Promi
       return;
     }
 
-    const targetUser = data.users[userIndex];
+    const targetUser = data.users[userIndex] as ExtendedUser;
 
     // Permission checks
     if (req.user.role === 'manager' && targetUser.location !== req.user.location) {
@@ -255,7 +291,7 @@ router.put('/:id', authenticateToken, async (req: Request, res: Response): Promi
     }
 
     // Update user
-    data.users[userIndex] = {
+    const updatedUser: ExtendedUser = {
       ...targetUser,
       firstName: firstName || targetUser.firstName,
       lastName: lastName || targetUser.lastName,
@@ -264,18 +300,19 @@ router.put('/:id', authenticateToken, async (req: Request, res: Response): Promi
       status: status || targetUser.status
     };
 
+    data.users[userIndex] = updatedUser as User;
     DatabaseService.writeDatabase(data);
 
     res.json({
       message: 'User updated successfully',
       user: {
-        id: data.users[userIndex].id,
-        email: data.users[userIndex].email,
-        firstName: data.users[userIndex].firstName,
-        lastName: data.users[userIndex].lastName,
-        role: data.users[userIndex].role,
-        location: data.users[userIndex].location,
-        status: data.users[userIndex].status
+        id: updatedUser.id,
+        email: updatedUser.email,
+        firstName: updatedUser.firstName,
+        lastName: updatedUser.lastName,
+        role: updatedUser.role,
+        location: updatedUser.location,
+        status: updatedUser.status
       }
     });
 
@@ -302,7 +339,7 @@ router.delete('/:id', authenticateToken, (req: Request, res: Response): void => 
       return;
     }
 
-    const targetUser = data.users[userIndex];
+    const targetUser = data.users[userIndex] as ExtendedUser;
 
     // Permission checks
     if (req.user.role === 'manager' && targetUser.location !== req.user.location) {
@@ -317,17 +354,104 @@ router.delete('/:id', authenticateToken, (req: Request, res: Response): void => 
     }
 
     // Deactivate user instead of deleting
-    data.users[userIndex] = {
+    const deactivatedUser: ExtendedUser = {
       ...targetUser,
       status: 'inactive'
     };
 
+    data.users[userIndex] = deactivatedUser as User;
     DatabaseService.writeDatabase(data);
 
     res.json({ message: 'User deactivated successfully' });
 
   } catch (error) {
     console.error('Deactivate user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get user profile by ID (for user details view)
+router.get('/:id', authenticateToken, (req: Request, res: Response): void => {
+  try {
+    const userId = parseInt(req.params.id);
+    const user = DatabaseService.getUserById(userId);
+
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    const extUser = user as ExtendedUser;
+
+    // Permission checks
+    if (req.user.role === 'manager' && extUser.location !== req.user.location && extUser.role !== 'admin') {
+      res.status(403).json({ error: 'Permission denied' });
+      return;
+    }
+
+    res.json({
+      id: extUser.id,
+      username: extUser.username,
+      email: extUser.email || extUser.username,
+      firstName: extUser.firstName || extUser.name?.split(' ')[0] || 'Unknown',
+      lastName: extUser.lastName || extUser.name?.split(' ').slice(1).join(' ') || '',
+      role: extUser.role,
+      location: extUser.location,
+      status: extUser.status || 'active',
+      phoneNumber: extUser.phoneNumber,
+      createdAt: extUser.createdAt,
+      lastLogin: extUser.lastLogin,
+      isFirstLogin: extUser.isFirstLogin || false
+    });
+
+  } catch (error) {
+    console.error('Get user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Send invitation email (placeholder - would integrate with email service)
+router.post('/:id/send-invitation', authenticateToken, (req: Request, res: Response): void => {
+  try {
+    if (!canCreateUsers(req.user)) {
+      res.status(403).json({ error: 'Permission denied' });
+      return;
+    }
+
+    const userId = parseInt(req.params.id);
+    const user = DatabaseService.getUserById(userId);
+
+    if (!user) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    const extUser = user as ExtendedUser;
+
+    // Permission checks
+    if (req.user.role === 'manager' && extUser.location !== req.user.location) {
+      res.status(403).json({ error: 'Permission denied' });
+      return;
+    }
+
+    if (extUser.status !== 'pending') {
+      res.status(400).json({ error: 'User is not in pending status' });
+      return;
+    }
+
+    // Generate new temp token
+    const tempToken = generateTempToken(extUser.email || extUser.username);
+
+    // In production, this would send an actual email
+    // For demo, we'll just return the token
+    res.json({
+      message: 'Invitation sent successfully',
+      tempToken, // In production, this would be sent via email
+      email: extUser.email || extUser.username
+    });
+
+  } catch (error) {
+    console.error('Send invitation error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

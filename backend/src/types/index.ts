@@ -9,6 +9,16 @@ export interface User {
   role: 'admin' | 'manager' | 'volunteer';
   name: string;
   location: string;
+  // New user management fields
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  isFirstLogin?: boolean;
+  phoneNumber?: string;
+  createdAt?: string;
+  createdBy?: number;
+  status?: 'active' | 'pending' | 'inactive';
+  lastLogin?: string;
 }
 
 export interface Transaction {
@@ -54,6 +64,36 @@ export interface Database {
   nextUserId: number;
   nextTransactionId: number;
   nextShiftId: number;
+}
+
+// User Management Types
+export interface CreateUserRequest {
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: 'volunteer' | 'manager';
+  location: string;
+  phoneNumber?: string;
+}
+
+export interface FirstTimePasswordSetup {
+  tempToken: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
+export interface UserResponse {
+  id: number;
+  username: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  location: string;
+  status: string;
+  createdAt: string;
+  lastLogin?: string;
+  isFirstLogin: boolean;
 }
 
 // Business constants exported from types for now

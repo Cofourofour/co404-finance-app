@@ -5,6 +5,15 @@ export interface User {
     role: 'admin' | 'manager' | 'volunteer';
     name: string;
     location: string;
+    email?: string;
+    firstName?: string;
+    lastName?: string;
+    isFirstLogin?: boolean;
+    phoneNumber?: string;
+    createdAt?: string;
+    createdBy?: number;
+    status?: 'active' | 'pending' | 'inactive';
+    lastLogin?: string;
 }
 export interface Transaction {
     id: number;
@@ -45,6 +54,32 @@ export interface Database {
     nextUserId: number;
     nextTransactionId: number;
     nextShiftId: number;
+}
+export interface CreateUserRequest {
+    email: string;
+    firstName: string;
+    lastName: string;
+    role: 'volunteer' | 'manager';
+    location: string;
+    phoneNumber?: string;
+}
+export interface FirstTimePasswordSetup {
+    tempToken: string;
+    newPassword: string;
+    confirmPassword: string;
+}
+export interface UserResponse {
+    id: number;
+    username: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+    location: string;
+    status: string;
+    createdAt: string;
+    lastLogin?: string;
+    isFirstLogin: boolean;
 }
 export declare const EXPENSE_CATEGORIES: readonly ["Cleaning supplies", "Coffee", "Drinking water", "General supplies", "Improvements", "Internet", "Laundry", "Miscellaneous", "Rent", "Utilities", "Volunteer activities", "Volunteer breakfast", "Day-to-day expenses", "Family dinner", "Beers", "Market", "Software", "Expansion", "Taxes", "Maintenance", "Wages", "Airbnb"];
 export declare const LOCATION_CURRENCY: {
