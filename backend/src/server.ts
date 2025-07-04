@@ -23,9 +23,12 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.text({ limit: '50mb' }));
 
 // Routes
+import userRoutes from './routes/users';
+
 app.use('/api', authRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/shifts', shiftRoutes);
+app.use('/api/users', userRoutes);
 
 // Health check
 app.get('/api/hello', (req, res) => {
