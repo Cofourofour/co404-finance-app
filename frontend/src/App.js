@@ -1,3 +1,4 @@
+import { TypeScriptTest } from './components/test/TypeScriptTest';
 import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import './App.css';
@@ -522,6 +523,8 @@ const handleCountAgain = () => {
             <button onClick={handleLogout} className="logout-btn">Logout</button>
           </div>
         </div>
+
+        <TypeScriptTest user={user} />
 
         {/* Location Filter Buttons - Admin Only */}
         {user.role === 'admin' && (

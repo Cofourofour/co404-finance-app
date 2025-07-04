@@ -1,0 +1,41 @@
+// =============================================================================
+// CO404 FRONTEND - TRANSACTION CARD COMPONENT
+// =============================================================================
+
+import React from 'react';
+import { Transaction } from '../../types';
+
+interface TransactionCardProps {
+  transaction: Transaction;
+  selectedLocation: string;
+}
+
+export const TransactionCard: React.FC<TransactionCardProps> = ({ 
+  transaction, 
+  selectedLocation 
+}) => {
+  return (
+    <div className={`transaction ${transaction.type}`}>
+      <div className="transaction-main">
+        <div className="transaction-info">
+          <span className="transaction-description">{transaction.description}</span>
+          <div className="transaction-details">
+            <span className="category-badge">{transaction.category}</span>
+            <span className="payment-badge">{transaction.paymentMethod}</span>
+          </div>
+          <small className="transaction-meta">
+            {transaction.location} • Added by: {transaction.addedBy} • {new Date(transaction.date).toLocaleDateString()}
+          </small>
+        </div>
+        <div className="transaction-amount">
+          <span className="amount">{transaction.formattedAmount}</span>
+          {selectedLocation === 'all' && (
+            <small className="usd-amount">
+              ${transaction.amountUSD.toFixed(2)} USD
+            </small>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};

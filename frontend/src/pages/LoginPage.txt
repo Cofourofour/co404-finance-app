@@ -1,0 +1,28 @@
+// =============================================================================
+// CO404 FRONTEND - LOGIN PAGE
+// =============================================================================
+
+import React from 'react';
+import { LoginForm as LoginFormType } from '../types';
+import { LoginForm } from '../components';
+
+interface LoginPageProps {
+  onLogin: (credentials: LoginFormType) => Promise<void>;
+  loading: boolean;
+  error: string;
+}
+
+export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, loading, error }) => {
+  return (
+    <div className="App">
+      <header className="App-header">
+        <h1>Co404 Finance Dashboard</h1>
+        <LoginForm 
+          onLogin={onLogin}
+          loading={loading}
+          error={error}
+        />
+      </header>
+    </div>
+  );
+};

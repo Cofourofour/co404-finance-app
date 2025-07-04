@@ -1,0 +1,80 @@
+// =============================================================================
+// CO404 FRONTEND - SHIFT MANAGEMENT HOOK
+// =============================================================================
+
+import { useState, useEffect } from 'react';
+import { Shift, ShiftForm, CashCount, UseShiftReturn } from '../types';
+import { apiService } from '../services/api';
+
+export const useShift = (): UseShiftReturn => {
+  const [activeShift, setActiveShift] = useState<Shift | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const fetchActiveShift = async (): Promise<void> => {
+    try {
+      const shift = await apiService.getActiveShift();
+      setActiveShift(shift);
+    } catch (error: any) {
+      console.error('Error fetching active shift:', error);
+      setError(error.message || 'Failed to fetch shift');
+    }
+  };
+
+  const startShift = async (form: ShiftForm): Promise<void> => {
+    setLoading(true);
+    setError('');
+    
+    try {
+      const newShift = await apiService.startShift(form);
+      setActiveShift(newShift);
+    } catch (error: any) {
+      setError(error.message || 'Failed to start shift');
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const endShift = async (cashCount: CashCount, acceptVariance = false): Promise<void> => {
+    setLoading(true);
+    setError('');
+    
+    try {
+      const result = await apiService.endShift(cashCount, acceptVariance);
+      
+      // If variance was detected and not accepted, throw with variance info
+      if (result.varianceDetected && !acceptVariance) {
+        const varianceError = new Error('Variance detected');
+        (varianceError as any).varianceInfo = result;
+        throw varianceError;
+      }
+      
+      // Shift completed successfully
+      setActiveShift(null);
+      return result;
+    } catch (error: any) {
+      if (error.varianceInfo) {
+        // Re-throw variance errors for component to handle
+        throw error;
+      }
+      setError(error.message || 'Failed to end shift');
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch active shift when hook initializes
+  useEffect(() => {
+    fetchActiveShift();
+  }, []);
+
+  return {
+    activeShift,
+    startShift,
+    endShift,
+    loading,
+    error
+  };
+};

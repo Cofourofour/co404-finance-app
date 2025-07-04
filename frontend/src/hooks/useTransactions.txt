@@ -1,0 +1,52 @@
+// =============================================================================
+// CO404 FRONTEND - TRANSACTIONS HOOK
+// =============================================================================
+
+import { useState, useEffect } from 'react';
+import { Transaction, TransactionForm, UseTransactionsReturn } from '../types';
+import { apiService } from '../services/api';
+
+export const useTransactions = (selectedLocation?: string): UseTransactionsReturn => {
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const fetchTransactions = async (): Promise<void> => {
+    setLoading(true);
+    setError('');
+    
+    try {
+      const data = await apiService.getTransactions(selectedLocation);
+      setTransactions(data);
+    } catch (error: any) {
+      setError(error.message || 'Failed to fetch transactions');
+      console.error('Error fetching transactions:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addTransaction = async (transactionForm: TransactionForm): Promise<void> => {
+    setError('');
+    
+    try {
+      const newTransaction = await apiService.addTransaction(transactionForm);
+      setTransactions(prev => [newTransaction, ...prev]);
+    } catch (error: any) {
+      setError(error.message || 'Failed to add transaction');
+      throw error;
+    }
+  };
+
+  // Fetch transactions when selectedLocation changes
+  useEffect(() => {
+    fetchTransactions();
+  }, [selectedLocation]);
+
+  return {
+    transactions,
+    addTransaction,
+    loading,
+    error
+  };
+};

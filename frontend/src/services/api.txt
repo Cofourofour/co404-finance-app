@@ -1,0 +1,154 @@
+// =============================================================================
+// CO404 FRONTEND - API SERVICE LAYER
+// =============================================================================
+
+import {
+  User,
+  Transaction,
+  Shift,
+  BusinessData,
+  LoginForm,
+  LoginResponse,
+  TransactionForm,
+  ShiftForm,
+  CashCount,
+  VarianceInfo,
+  UploadResults,
+  ApiError
+} from '../types';
+
+const API_BASE_URL = 'https://co404-finance-app.onrender.com';
+
+class ApiError extends Error {
+  constructor(message: string, public status: number) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+class ApiService {
+  private getAuthHeaders(): HeadersInit {
+    const token = localStorage.getItem('co404_token');
+    return {
+      'Content-Type': 'application/json',
+      ...(token && { 'Authorization': `Bearer ${token}` })
+    };
+  }
+
+  private async handleResponse<T>(response: Response): Promise<T> {
+    if (!response.ok) {
+      const errorData: ApiError = await response.json().catch(() => ({ 
+        error: 'Network error' 
+      }));
+      throw new ApiError(errorData.error || 'Request failed', response.status);
+    }
+    return response.json();
+  }
+
+  // Authentication
+  async login(credentials: LoginForm): Promise<LoginResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(credentials)
+    });
+    return this.handleResponse<LoginResponse>(response);
+  }
+
+  async getCurrentUser(): Promise<User> {
+    const response = await fetch(`${API_BASE_URL}/api/me`, {
+      headers: this.getAuthHeaders()
+    });
+    return this.handleResponse<User>(response);
+  }
+
+  // Business Data
+  async getBusinessData(): Promise<BusinessData> {
+    const response = await fetch(`${API_BASE_URL}/api/business-data`, {
+      headers: this.getAuthHeaders()
+    });
+    return this.handleResponse<BusinessData>(response);
+  }
+
+  // Transactions
+  async getTransactions(location?: string): Promise<Transaction[]> {
+    const locationParam = location ? `?location=${location}` : '';
+    const response = await fetch(`${API_BASE_URL}/api/transactions${locationParam}`, {
+      headers: this.getAuthHeaders()
+    });
+    return this.handleResponse<Transaction[]>(response);
+  }
+
+  async addTransaction(transaction: TransactionForm): Promise<Transaction> {
+    const response = await fetch(`${API_BASE_URL}/api/transactions`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({
+        description: transaction.description,
+        amount: transaction.type === 'expense' 
+          ? -Math.abs(Number(transaction.amount)) 
+          : Number(transaction.amount),
+        type: transaction.type,
+        location: transaction.location,
+        category: transaction.category,
+        paymentMethod: transaction.paymentMethod
+      })
+    });
+    return this.handleResponse<Transaction>(response);
+  }
+
+  // Shifts
+  async getActiveShift(): Promise<Shift | null> {
+    const response = await fetch(`${API_BASE_URL}/api/shifts/active`, {
+      headers: this.getAuthHeaders()
+    });
+    return this.handleResponse<Shift | null>(response);
+  }
+
+  async startShift(form: ShiftForm): Promise<Shift> {
+    const response = await fetch(`${API_BASE_URL}/api/shifts/start`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({
+        startingCash: Number(form.startingCash),
+        shiftType: form.shiftType,
+        location: form.location
+      })
+    });
+    return this.handleResponse<Shift>(response);
+  }
+
+  async endShift(cashCount: CashCount, acceptVariance = false): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/api/shifts/end`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ cashCount, acceptVariance })
+    });
+    return this.handleResponse<any>(response);
+  }
+
+  // File Upload
+  async uploadExcelFile(file: File, location: string): Promise<UploadResults> {
+    const formData = new FormData();
+    formData.append('excelFile', file);
+    formData.append('location', location);
+
+    const token = localStorage.getItem('co404_token');
+    const response = await fetch(`${API_BASE_URL}/api/upload-excel`, {
+      method: 'POST',
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+      body: formData
+    });
+    return this.handleResponse<UploadResults>(response);
+  }
+
+  // Health Check
+  async healthCheck(): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/api/hello`);
+    return this.handleResponse<any>(response);
+  }
+}
+
+// Export singleton instance
+export const apiService = new ApiService();
+export default apiService;
