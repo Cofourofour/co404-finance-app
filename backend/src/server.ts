@@ -9,6 +9,7 @@ import authRoutes from './routes/auth';
 import transactionRoutes from './routes/transactions';
 import shiftRoutes from './routes/shifts';
 import userRoutes from './routes/users';
+import businessRoutes from './routes/business';
 
 // Load environment variables
 config();
@@ -28,6 +29,7 @@ app.use('/api', authRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/shifts', shiftRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api', businessRoutes);
 
 // Health check
 app.get('/api/hello', (req, res) => {
